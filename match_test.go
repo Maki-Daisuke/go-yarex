@@ -1,166 +1,96 @@
 package reaot
 
-import "testing"
+import (
+	"regexp"
+	"testing"
+)
 
-func TestMatchFooBar(t *testing.T) {
-	re, err := parse("foo bar")
+func testMatchStrings(t *testing.T, restr string, tests []string) {
+	re, err := parse(restr)
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
-	tests := []struct {
-		str    string
-		result bool
-	}{
-		{"foo bar", true}, {"foo  bar", false}, {"hogefoo barfuga", true}, {"foo barf", true}, {"Afoo bar", true}, {"foo ba", false},
-	}
-	for _, test := range tests {
-		if Match(re, test.str) != test.result {
-			if test.result {
-				t.Errorf("%v should match against %q, but didn't", re, test.str)
+	goRe := regexp.MustCompile(restr)
+	for _, str := range tests {
+		match := goRe.MatchString(str)
+		if Match(re, str) != match {
+			if match {
+				t.Errorf("%v should match against %q, but didn't", re, str)
 			} else {
-				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
+				t.Errorf("%v shouldn't match against %q, but did", re, str)
 			}
 		}
 	}
+}
+
+func TestMatchFooBar(t *testing.T) {
+	testMatchStrings(t, "foo bar", []string{
+		"foo bar",
+		"foo  bar",
+		"hogefoo barfuga",
+		"foo barf",
+		"Afoo bar",
+		"foo ba",
+	})
 }
 
 func TestMatchFooOrBar(t *testing.T) {
-	re, err := parse("foo|bar")
-	if err != nil {
-		t.Fatalf("want nil, but got %s", err)
-	}
-	tests := []struct {
-		str    string
-		result bool
-	}{
-		{"foo bar", true},
-		{"hogefoo barfuga", true},
-		{"foo baz", true},
-		{"bar f", true},
-		{"foba", false},
-		{"", false},
-	}
-	for _, test := range tests {
-		if Match(re, test.str) != test.result {
-			if test.result {
-				t.Errorf("%v should match against %q, but didn't", re, test.str)
-			} else {
-				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
-			}
-		}
-	}
+	testMatchStrings(t, "foo|bar", []string{
+		"foo bar",
+		"hogefoo barfuga",
+		"foo baz",
+		"bar f",
+		"foba",
+		"",
+	})
 }
 
 func TestMatchBacktracking(t *testing.T) {
-	re, err := parse("(foo|fo)oh")
-	if err != nil {
-		t.Fatalf("want nil, but got %s", err)
-	}
-	tests := []struct {
-		str    string
-		result bool
-	}{
-		{"fooh", true},
-		{"foooh", true},
-		{"foh", false},
-		{"fooooooooooh", false},
-		{"fooooooooofoooh", true},
-		{"", false},
-	}
-	for _, test := range tests {
-		if Match(re, test.str) != test.result {
-			if test.result {
-				t.Errorf("%v should match against %q, but didn't", re, test.str)
-			} else {
-				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
-			}
-		}
-	}
+	testMatchStrings(t, "(foo|fo)oh", []string{
+		"fooh",
+		"foooh",
+		"foh",
+		"fooooooooooh",
+		"fooooooooofoooh",
+		"",
+	})
 }
 
 func TestMatchZeroOrMore(t *testing.T) {
-	re, err := parse("fo*oh")
-	if err != nil {
-		t.Fatalf("want nil, but got %s", err)
-	}
-	tests := []struct {
-		str    string
-		result bool
-	}{
-		{"fooh", true},
-		{"foh", true},
-		{"fh", false},
-		{"fooooooooooh", true},
-		{"fooooooooofoooh", true},
-		{"", false},
-		{"fo", false},
-		{"oh", false},
-	}
-	for _, test := range tests {
-		if Match(re, test.str) != test.result {
-			if test.result {
-				t.Errorf("%v should match against %q, but didn't", re, test.str)
-			} else {
-				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
-			}
-		}
-	}
+	testMatchStrings(t, "fo*oh", []string{
+		"fooh",
+		"foh",
+		"fh",
+		"fooooooooooh",
+		"fooooooooofoooh",
+		"",
+		"fo",
+		"oh",
+	})
 }
 
 func TestMatchOneOrMore(t *testing.T) {
-	re, err := parse("fo+oh")
-	if err != nil {
-		t.Fatalf("want nil, but got %s", err)
-	}
-	tests := []struct {
-		str    string
-		result bool
-	}{
-		{"fooh", true},
-		{"foh", false},
-		{"fh", false},
-		{"fooooooooooh", true},
-		{"fooooooooofoooh", true},
-		{"", false},
-		{"fo", false},
-		{"oh", false},
-	}
-	for _, test := range tests {
-		if Match(re, test.str) != test.result {
-			if test.result {
-				t.Errorf("%v should match against %q, but didn't", re, test.str)
-			} else {
-				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
-			}
-		}
-	}
+	testMatchStrings(t, "fo+oh", []string{
+		"fooh",
+		"foh",
+		"fh",
+		"fooooooooooh",
+		"fooooooooofoooh",
+		"",
+		"fo",
+		"oh",
+	})
 }
 
 func TestMatchOpt(t *testing.T) {
-	re, err := parse("fo?oh")
-	if err != nil {
-		t.Fatalf("want nil, but got %s", err)
-	}
-	tests := []struct {
-		str    string
-		result bool
-	}{
-		{"fooh", true},
-		{"foh", true},
-		{"fh", false},
-		{"fooooooooooh", false},
-		{"fooooooooofooh", true},
-		{"", false},
-		{"fo", false},
-		{"oh", false},
-	}
-	for _, test := range tests {
-		if Match(re, test.str) != test.result {
-			if test.result {
-				t.Errorf("%v should match against %q, but didn't", re, test.str)
-			} else {
-				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
-			}
-		}
-	}
+	testMatchStrings(t, "fo?oh", []string{
+		"fooh",
+		"foh",
+		"fh",
+		"fooooooooooh",
+		"fooooooooofooh",
+		"",
+		"fo",
+		"oh",
+	})
 }
