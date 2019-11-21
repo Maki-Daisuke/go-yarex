@@ -50,3 +50,31 @@ func TestMatchFooOrBar(t *testing.T) {
 		}
 	}
 }
+
+
+func TestMatchBacktracking(t *testing.T) {
+	re, err := parse("(foo|fo)oh")
+	if err != nil {
+		t.Fatalf("want nil, but got %s", err)
+	}
+	tests := []struct {
+		str    string
+		result bool
+	}{
+		{"fooh", true},
+		{"foooh", true},
+		{"foh", false},
+		{"fooooooooooh", false},
+		{"fooooooooofoooh", true},
+		{"", false},
+	}
+	for _, test := range tests {
+		if Match(re, test.str) != test.result {
+			if test.result {
+				t.Errorf("%v should match against %q, but didn't", re, test.str)
+			} else {
+				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
+			}
+		}
+	}
+}

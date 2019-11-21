@@ -4,35 +4,34 @@ import "strings"
 
 func Match(re Regexp, s string) bool {
 	for i := 0; i < len(s); i++ {
-		if _, ok := re.Match(s[i:]); ok {
+		if re.match(s[i:], func(_ string) bool { return true }) {
 			return true
 		}
 	}
 	return false
 }
 
-func (re *ReLit) Match(s string) (string, bool) {
-	if strings.HasPrefix(s, re.str) {
-		return s[len(re.str):], true
+func (re *ReLit) match(s string, k func(string) bool) bool {
+	if !strings.HasPrefix(s, re.str) {
+		return false
 	}
-	return "", false
+	return k(s[len(re.str):])
 }
 
-func (r *ReSeq) Match(s string) (string, bool) {
-	for _, re := range r.seq {
-		var ok bool
-		if s, ok = re.Match(s); !ok {
-			return "", false
-		}
+func (r *ReSeq) match(s string, k func(string) bool) bool {
+	if len(r.seq) == 0 {
+		return k(s)
 	}
-	return s, true
+	return r.seq[0].match(s, func(t string) bool {
+		return (&ReSeq{r.seq[1:]}).match(t, k)
+	})
 }
 
-func (r *ReAlt) Match(s string) (string, bool) {
+func (r *ReAlt) match(s string, k func(string) bool) bool {
 	for _, re := range r.opts {
-		if t, ok := re.Match(s); ok {
-			return t, true
+		if re.match(s, k) {
+			return true
 		}
 	}
-	return "", false
+	return false
 }

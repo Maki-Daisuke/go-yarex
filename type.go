@@ -3,6 +3,5 @@ package reaot
 type Regexp interface {
 	//Compile()
 	String() string
-	Match(string) (string, bool)
+	match(string, func(string) bool) bool
 }
-
