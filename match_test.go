@@ -93,4 +93,14 @@ func TestMatchOpt(t *testing.T) {
 		"fo",
 		"oh",
 	})
+	testMatchStrings(t, "fo*oh?", []string{
+		"ABfooh",
+		"foo",
+		"fh",
+		"foooohoooooo",
+		"foooooooooooCD",
+		"",
+		"fo",
+		"oh",
+	})
 }
