@@ -19,36 +19,31 @@ func parse(s string) (re Regexp, err error) {
 }
 
 func parseLit(str string) (Regexp, string) {
-	i := 0
-LOOP:
-	for ; i < len(str); i++ {
-		switch str[i] {
-		case '$', '^', '*', '(', ')', '+', '[', ']', '{', '}', '|', '\\', '.', '?':
-			break LOOP
-		}
+	if len(str) == 0 {
+		panic(fmt.Errorf("Litetal is expected, but reached end-of-string unexpectedly"))
 	}
-	if i == 0 {
+	switch str[0] {
+	case '$', '^', '*', '(', ')', '+', '[', ']', '{', '}', '|', '\\', '.', '?':
 		panic(fmt.Errorf("Litetal is expected, but cannot find: %q", str))
 	}
-	return &ReLit{str[0:i]}, str[i:]
+	return &ReLit{str[0:1]}, str[1:]
 }
 
 func parseSeq(str string) (Regexp, string) {
 	seq := make([]Regexp, 0, 8)
 LOOP:
 	for len(str) > 0 {
+		var re Regexp
 		switch str[0] {
 		case '(':
-			var re Regexp
 			re, str = parseGroup(str)
-			seq = append(seq, re)
 		case ')', '|':
 			break LOOP
 		default:
-			var re Regexp
 			re, str = parseLit(str)
-			seq = append(seq, re)
 		}
+		re, str = parseQuantifier(str, re)
+		seq = append(seq, re)
 	}
 	if len(seq) == 1 {
 		return seq[0], str
@@ -89,4 +84,16 @@ func parseGroup(str string) (Regexp, string) {
 		panic(fmt.Errorf("Unmatched '(' : %q", str))
 	}
 	return re, remain[1:]
+}
+
+func parseQuantifier(str string, re Regexp) (Regexp, string) {
+	if len(str) == 0 {
+		return re, str
+	}
+	switch str[0] {
+	case '*':
+		re = &ReZeroOrMore{re}
+		str = str[1:]
+	}
+	return re, str
 }

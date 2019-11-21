@@ -7,12 +7,12 @@ func TestParseFooBar(t *testing.T) {
 	if err != nil {
 		t.Errorf("want %v, but got %v", nil, err)
 	}
-	lit, ok := re.(*ReLit)
+	seq, ok := re.(*ReSeq)
 	if !ok {
-		t.Fatalf("want *ReLit, but got %T", re)
+		t.Fatalf("want *ReSeq, but got %T", re)
 	}
-	if lit.str != "foo bar" {
-		t.Errorf("want %q, but got %q", "foo bar", lit.str)
+	if seq.String() != "(foo bar)" {
+		t.Errorf("want %q, but got %q", "(foo bar)", seq)
 	}
 }
 
@@ -25,18 +25,18 @@ func TestParseFooOrBar(t *testing.T) {
 	if !ok {
 		t.Fatalf("want *ReAlt, but got %v of type %T", re, re)
 	}
-	lit, ok := (alt.opts[0]).(*ReLit)
+	seq, ok := (alt.opts[0]).(*ReSeq)
 	if !ok {
-		t.Fatalf("want *ReLit, but got %v of type %T", alt.opts[0], alt.opts[0])
+		t.Fatalf("want *ReSeq, but got %v of type %T", alt.opts[0], alt.opts[0])
 	}
-	if lit.str != "foo" {
-		t.Errorf("want %q, but got %q", "foo", lit.str)
+	if seq.String() != "(foo)" {
+		t.Errorf("want %q, but got %q", "foo", seq)
 	}
-	lit, ok = (alt.opts[1]).(*ReLit)
+	seq, ok = (alt.opts[1]).(*ReSeq)
 	if !ok {
-		t.Fatalf("want *ReLit, but got %v of type %T", alt.opts[1], alt.opts[1])
+		t.Fatalf("want *ReSeq, but got %v of type %T", alt.opts[1], alt.opts[1])
 	}
-	if lit.str != "bar" {
-		t.Errorf("want %q, but got %q", "bar", lit.str)
+	if seq.String() != "(bar)" {
+		t.Errorf("want %q, but got %q", "bar", seq)
 	}
 }

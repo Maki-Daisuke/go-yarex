@@ -35,3 +35,11 @@ func (r *ReAlt) match(s string, k func(string) bool) bool {
 	}
 	return false
 }
+
+func (r *ReZeroOrMore) match(s string, k func(string) bool) bool {
+	re := r.re
+	if re.match(s, func(s string) bool { return r.match(s, k) }) {
+		return true
+	}
+	return k(s)
+}

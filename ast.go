@@ -40,3 +40,11 @@ func (re *ReAlt) String() string {
 	fmt.Fprint(b, ")")
 	return b.String()
 }
+
+type ReZeroOrMore struct {
+	re Regexp
+}
+
+func (re *ReZeroOrMore) String() string {
+	return re.re.String() + "*"
+}
