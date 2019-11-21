@@ -48,3 +48,11 @@ type ReZeroOrMore struct {
 func (re *ReZeroOrMore) String() string {
 	return re.re.String() + "*"
 }
+
+type ReOneOrMore struct {
+	re Regexp
+}
+
+func (re *ReOneOrMore) String() string {
+	return re.re.String() + "+"
+}

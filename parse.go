@@ -94,6 +94,9 @@ func parseQuantifier(str string, re Regexp) (Regexp, string) {
 	case '*':
 		re = &ReZeroOrMore{re}
 		str = str[1:]
+	case '+':
+		re = &ReOneOrMore{re}
+		str = str[1:]
 	}
 	return re, str
 }

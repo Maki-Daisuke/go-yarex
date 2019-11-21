@@ -43,3 +43,11 @@ func (r *ReZeroOrMore) match(s string, k func(string) bool) bool {
 	}
 	return k(s)
 }
+
+func (r *ReOneOrMore) match(s string, k func(string) bool) bool {
+	re := r.re
+	if re.match(s, func(s string) bool { return (&ReZeroOrMore{re}).match(s, k) }) {
+		return true
+	}
+	return false
+}

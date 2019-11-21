@@ -106,3 +106,32 @@ func TestMatchZeroOrMore(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchOneOrMore(t *testing.T) {
+	re, err := parse("fo+oh")
+	if err != nil {
+		t.Fatalf("want nil, but got %s", err)
+	}
+	tests := []struct {
+		str    string
+		result bool
+	}{
+		{"fooh", true},
+		{"foh", false},
+		{"fh", false},
+		{"fooooooooooh", true},
+		{"fooooooooofoooh", true},
+		{"", false},
+		{"fo", false},
+		{"oh", false},
+	}
+	for _, test := range tests {
+		if Match(re, test.str) != test.result {
+			if test.result {
+				t.Errorf("%v should match against %q, but didn't", re, test.str)
+			} else {
+				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
+			}
+		}
+	}
+}
