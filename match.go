@@ -51,3 +51,11 @@ func (r *ReOneOrMore) match(s string, k func(string) bool) bool {
 	}
 	return false
 }
+
+func (r *ReOpt) match(s string, k func(string) bool) bool {
+	re := r.re
+	if re.match(s, k) {
+		return true
+	}
+	return k(s)
+}

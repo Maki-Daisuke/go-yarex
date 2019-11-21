@@ -56,3 +56,11 @@ type ReOneOrMore struct {
 func (re *ReOneOrMore) String() string {
 	return re.re.String() + "+"
 }
+
+type ReOpt struct {
+	re Regexp
+}
+
+func (re *ReOpt) String() string {
+	return re.re.String() + "?"
+}
