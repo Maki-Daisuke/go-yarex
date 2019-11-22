@@ -123,3 +123,25 @@ func TestMatchWildcard(t *testing.T) {
 		"xxxxxa",
 	})
 }
+
+func TestMatchBegin(t *testing.T) {
+	testMatchStrings(t, "^foo bar", []string{
+		"foo bar",
+		"foo  bar",
+		"hogefoo barfuga",
+		"foo barf",
+		"Afoo bar",
+		"foo ba",
+		"\nfoo bar",
+	})
+	testMatchStrings(t, "(^|A)*foo bar", []string{
+		"foo bar",
+		"foo  bar",
+		"hogefoo barfuga",
+		"foo barf",
+		"Afoo bar",
+		"AAfoo bar",
+		"AAAAfoo bar",
+		"AABAAfoo bar",
+	})
+}

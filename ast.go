@@ -70,3 +70,9 @@ type ReOpt struct {
 func (re *ReOpt) String() string {
 	return re.re.String() + "?"
 }
+
+type ReAssertBegin struct{}
+
+func (re ReAssertBegin) String() string {
+	return "^"
+}

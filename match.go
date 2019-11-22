@@ -45,8 +45,14 @@ func (r *ReAlt) match(s string, p int, k func(int) bool) bool {
 
 func (r *ReZeroOrMore) match(s string, p int, k func(int) bool) bool {
 	re := r.re
-	if re.match(s, p, func(p1 int) bool { return r.match(s, p1, k) }) {
-		return true
+	matched := re.match(s, p, func(p1 int) bool {
+		if p1 == p { // This means zero-length assertion pattern matched.
+			return k(p1) // So, move ahead to the following pattern.
+		}
+		return r.match(s, p1, k)
+	})
+	if matched {
+		return matched
 	}
 	return k(p)
 }
@@ -63,6 +69,13 @@ func (r *ReOpt) match(s string, p int, k func(int) bool) bool {
 	re := r.re
 	if re.match(s, p, k) {
 		return true
+	}
+	return k(p)
+}
+
+func (re ReAssertBegin) match(s string, p int, k func(int) bool) bool {
+	if p != 0 {
+		return false
 	}
 	return k(p)
 }
