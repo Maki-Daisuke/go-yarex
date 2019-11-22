@@ -104,3 +104,22 @@ func TestMatchOpt(t *testing.T) {
 		"oh",
 	})
 }
+
+func TestMatchWildcard(t *testing.T) {
+	testMatchStrings(t, ".", []string{
+		"aiueo",
+		"\n",
+		"",
+		" ",
+		"\b",
+	})
+	testMatchStrings(t, ".+x", []string{
+		"",
+		"x",
+		"xx",
+		"aaaaax",
+		"\nx",
+		"xx\nx",
+		"xxxxxa",
+	})
+}

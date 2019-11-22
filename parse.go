@@ -35,6 +35,9 @@ LOOP:
 	for len(str) > 0 {
 		var re Regexp
 		switch str[0] {
+		case '.':
+			re = ReNotNewline{}
+			str = str[1:]
 		case '(':
 			re, str = parseGroup(str)
 		case ')', '|':

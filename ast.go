@@ -41,6 +41,12 @@ func (re *ReAlt) String() string {
 	return b.String()
 }
 
+type ReNotNewline struct{}
+
+func (re ReNotNewline) String() string {
+	return "."
+}
+
 type ReZeroOrMore struct {
 	re Regexp
 }

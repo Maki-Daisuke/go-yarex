@@ -18,6 +18,13 @@ func (re *ReLit) match(s string, k func(string) bool) bool {
 	return k(s[len(re.str):])
 }
 
+func (re ReNotNewline) match(s string, k func(string) bool) bool {
+	if len(s) == 0 || s[0] == '\n' {
+		return false
+	}
+	return k(s[1:])
+}
+
 func (r *ReSeq) match(s string, k func(string) bool) bool {
 	if len(r.seq) == 0 {
 		return k(s)
