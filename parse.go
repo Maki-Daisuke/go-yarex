@@ -11,14 +11,17 @@ func parse(s string) (re Regexp, err error) {
 			re = nil
 		}
 	}()
-	re, remain := parseAlt(s)
+	re, remain := (&(parser{})).parseAlt(s)
 	if remain != "" {
 		return nil, fmt.Errorf("Unknown context: %q", remain)
 	}
 	return re, nil
 }
 
-func parseLit(str string) (Regexp, string) {
+type parser struct {
+}
+
+func (*parser) parseLit(str string) (Regexp, string) {
 	if len(str) == 0 {
 		panic(fmt.Errorf("Litetal is expected, but reached end-of-string unexpectedly"))
 	}
@@ -29,7 +32,7 @@ func parseLit(str string) (Regexp, string) {
 	return &ReLit{str[0:1]}, str[1:]
 }
 
-func parseSeq(str string) (Regexp, string) {
+func (p *parser) parseSeq(str string) (Regexp, string) {
 	seq := make([]Regexp, 0, 8)
 LOOP:
 	for len(str) > 0 {
@@ -42,13 +45,13 @@ LOOP:
 			re = ReNotNewline{}
 			str = str[1:]
 		case '(':
-			re, str = parseGroup(str)
+			re, str = p.parseGroup(str)
 		case ')', '|':
 			break LOOP
 		default:
-			re, str = parseLit(str)
+			re, str = p.parseLit(str)
 		}
-		re, str = parseQuantifier(str, re)
+		re, str = p.parseQuantifier(str, re)
 		seq = append(seq, re)
 	}
 	if len(seq) == 1 {
@@ -58,15 +61,15 @@ LOOP:
 	}
 }
 
-func parseAlt(str string) (Regexp, string) {
-	re, str := parseSeq(str)
+func (p *parser) parseAlt(str string) (Regexp, string) {
+	re, str := p.parseSeq(str)
 	opts := []Regexp{re}
 LOOP:
 	for len(str) > 0 {
 		switch str[0] {
 		case '|':
 			var re Regexp
-			re, str = parseAlt(str[1:])
+			re, str = p.parseAlt(str[1:])
 			opts = append(opts, re)
 		case ')':
 			break LOOP
@@ -81,18 +84,18 @@ LOOP:
 	}
 }
 
-func parseGroup(str string) (Regexp, string) {
+func (p *parser) parseGroup(str string) (Regexp, string) {
 	if str[0] != '(' {
 		panic(fmt.Errorf("'(' is expected, but cannot find: %q", str))
 	}
-	re, remain := parseAlt(str[1:])
+	re, remain := p.parseAlt(str[1:])
 	if remain[0] != ')' {
 		panic(fmt.Errorf("Unmatched '(' : %q", str))
 	}
 	return re, remain[1:]
 }
 
-func parseQuantifier(str string, re Regexp) (Regexp, string) {
+func (p *parser) parseQuantifier(str string, re Regexp) (Regexp, string) {
 	if len(str) == 0 {
 		return re, str
 	}
