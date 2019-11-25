@@ -18,7 +18,7 @@ type ReSeq struct {
 }
 
 func (re *ReSeq) String() string {
-	b := bytes.NewBufferString("(")
+	b := bytes.NewBufferString("(?:")
 	for _, r := range re.seq {
 		fmt.Fprint(b, r.String())
 	}
@@ -31,7 +31,7 @@ type ReAlt struct {
 }
 
 func (re *ReAlt) String() string {
-	b := bytes.NewBufferString("(")
+	b := bytes.NewBufferString("(?:")
 	fmt.Fprint(b, re.opts[0].String())
 	for _, r := range re.opts[1:] {
 		fmt.Fprint(b, "|")
@@ -69,6 +69,21 @@ type ReOpt struct {
 
 func (re *ReOpt) String() string {
 	return re.re.String() + "?"
+}
+
+type ReCap struct {
+	index uint
+	re    Regexp
+}
+
+func (re *ReCap) String() string {
+	return fmt.Sprintf("(%s)", re.re)
+}
+
+type ReBackRef uint
+
+func (re ReBackRef) String() string {
+	return fmt.Sprintf("\\%d", uint(re))
 }
 
 type ReAssertBegin struct{}

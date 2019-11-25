@@ -145,3 +145,31 @@ func TestMatchBegin(t *testing.T) {
 		"AABAAfoo bar",
 	})
 }
+
+func TestMatchBackRef(t *testing.T) {
+	// Here, we cannot use testMatchStrings, because Go's regexp does not
+	// support back-reference.
+	tests := []struct {
+		str    string
+		result bool
+	}{
+		{"hogehogefuga", true},
+		{"AAAhogehogefugaBBB", true},
+		{"hogefuga", false},
+		{"hoge", false},
+		{"fuga", false},
+	}
+	re, err := parse(`(hoge)\1fuga`)
+	if err != nil {
+		t.Fatalf("want nil, but got %s", err)
+	}
+	for _, test := range tests {
+		if Match(re, test.str) != test.result {
+			if test.result {
+				t.Errorf("%v should match against %q, but didn't", re, test.str)
+			} else {
+				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
+			}
+		}
+	}
+}

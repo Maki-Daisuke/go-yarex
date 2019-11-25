@@ -2,6 +2,7 @@ package reaot
 
 import (
 	"fmt"
+	"strconv"
 )
 
 func parse(s string) (re Regexp, err error) {
@@ -19,6 +20,8 @@ func parse(s string) (re Regexp, err error) {
 }
 
 type parser struct {
+	openCaptures  uint
+	closeCaptures uint
 }
 
 func (*parser) parseLit(str string) (Regexp, string) {
@@ -44,6 +47,8 @@ LOOP:
 		case '.':
 			re = ReNotNewline{}
 			str = str[1:]
+		case '\\':
+			re, str = p.parseEscape(str)
 		case '(':
 			re, str = p.parseGroup(str)
 		case ')', '|':
@@ -88,11 +93,31 @@ func (p *parser) parseGroup(str string) (Regexp, string) {
 	if str[0] != '(' {
 		panic(fmt.Errorf("'(' is expected, but cannot find: %q", str))
 	}
+	if len(str) < 2 {
+		panic(fmt.Errorf("Unmatched '(' : %q", str))
+	}
+	if str[1] != '?' {
+		return p.parseCapture(str[1:])
+	}
+	if str[2] != ':' {
+		panic(fmt.Errorf("Unknown extended pattern syntzx: %q", str))
+	}
 	re, remain := p.parseAlt(str[1:])
 	if remain[0] != ')' {
 		panic(fmt.Errorf("Unmatched '(' : %q", str))
 	}
 	return re, remain[1:]
+}
+
+func (p *parser) parseCapture(str string) (Regexp, string) {
+	p.openCaptures++
+	index := p.openCaptures
+	re, remain := p.parseAlt(str)
+	if remain[0] != ')' {
+		panic(fmt.Errorf("Unmatched '(' : %q", str))
+	}
+	p.closeCaptures++
+	return &ReCap{index, re}, remain[1:]
 }
 
 func (p *parser) parseQuantifier(str string, re Regexp) (Regexp, string) {
@@ -111,4 +136,25 @@ func (p *parser) parseQuantifier(str string, re Regexp) (Regexp, string) {
 		str = str[1:]
 	}
 	return re, str
+}
+
+func (p *parser) parseEscape(str string) (Regexp, string) {
+	if str[0] != '\\' {
+		panic(fmt.Errorf("'\\' is expected, but cannot find: %q", str))
+	}
+	if len(str) < 2 {
+		panic(fmt.Errorf("Trailing '\\' in regex: %q", str))
+	}
+	switch str[1] {
+	case ' ', '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';',
+		'<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~':
+		return &ReLit{str[1:2]}, str[2:]
+	case '0':
+		return &ReLit{"\000"}, str[2:]
+	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		i, _ := strconv.ParseUint(str[1:2], 10, 32)
+		return ReBackRef(i), str[2:]
+	default:
+		panic(fmt.Errorf("Unknown escape sequence: %q", str))
+	}
 }
