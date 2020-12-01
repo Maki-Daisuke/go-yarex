@@ -5,12 +5,10 @@ import (
 	"fmt"
 )
 
-type ReLit struct {
-	str string
-}
+type ReLit []rune
 
-func (re *ReLit) String() string {
-	return re.str
+func (re ReLit) String() string {
+	return string(re)
 }
 
 type ReSeq struct {

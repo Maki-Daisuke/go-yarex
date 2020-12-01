@@ -2,7 +2,6 @@ package reaot
 
 import (
 	"fmt"
-	"strconv"
 )
 
 func parse(s string) (re Regexp, err error) {
@@ -12,8 +11,8 @@ func parse(s string) (re Regexp, err error) {
 			re = nil
 		}
 	}()
-	re, remain := (&(parser{})).parseAlt(s)
-	if remain != "" {
+	re, remain := (&(parser{})).parseAlt([]rune(s))
+	if len(remain) > 0 {
 		return nil, fmt.Errorf("Unknown context: %q", remain)
 	}
 	return re, nil
@@ -24,7 +23,7 @@ type parser struct {
 	closeCaptures uint
 }
 
-func (*parser) parseLit(str string) (Regexp, string) {
+func (*parser) parseLit(str []rune) (Regexp, []rune) {
 	if len(str) == 0 {
 		panic(fmt.Errorf("Litetal is expected, but reached end-of-string unexpectedly"))
 	}
@@ -32,10 +31,10 @@ func (*parser) parseLit(str string) (Regexp, string) {
 	case '$', '^', '*', '(', ')', '+', '[', ']', '{', '}', '|', '\\', '.', '?':
 		panic(fmt.Errorf("Litetal is expected, but cannot find: %q", str))
 	}
-	return &ReLit{str[0:1]}, str[1:]
+	return ReLit(str[0:1]), str[1:]
 }
 
-func (p *parser) parseSeq(str string) (Regexp, string) {
+func (p *parser) parseSeq(str []rune) (Regexp, []rune) {
 	seq := make([]Regexp, 0, 8)
 LOOP:
 	for len(str) > 0 {
@@ -66,7 +65,7 @@ LOOP:
 	}
 }
 
-func (p *parser) parseAlt(str string) (Regexp, string) {
+func (p *parser) parseAlt(str []rune) (Regexp, []rune) {
 	re, str := p.parseSeq(str)
 	opts := []Regexp{re}
 LOOP:
@@ -89,7 +88,7 @@ LOOP:
 	}
 }
 
-func (p *parser) parseGroup(str string) (Regexp, string) {
+func (p *parser) parseGroup(str []rune) (Regexp, []rune) {
 	if str[0] != '(' {
 		panic(fmt.Errorf("'(' is expected, but cannot find: %q", str))
 	}
@@ -109,7 +108,7 @@ func (p *parser) parseGroup(str string) (Regexp, string) {
 	return re, remain[1:]
 }
 
-func (p *parser) parseCapture(str string) (Regexp, string) {
+func (p *parser) parseCapture(str []rune) (Regexp, []rune) {
 	p.openCaptures++
 	index := p.openCaptures
 	re, remain := p.parseAlt(str)
@@ -120,7 +119,7 @@ func (p *parser) parseCapture(str string) (Regexp, string) {
 	return &ReCap{index, re}, remain[1:]
 }
 
-func (p *parser) parseQuantifier(str string, re Regexp) (Regexp, string) {
+func (p *parser) parseQuantifier(str []rune, re Regexp) (Regexp, []rune) {
 	if len(str) == 0 {
 		return re, str
 	}
@@ -138,7 +137,7 @@ func (p *parser) parseQuantifier(str string, re Regexp) (Regexp, string) {
 	return re, str
 }
 
-func (p *parser) parseEscape(str string) (Regexp, string) {
+func (p *parser) parseEscape(str []rune) (Regexp, []rune) {
 	if str[0] != '\\' {
 		panic(fmt.Errorf("'\\' is expected, but cannot find: %q", str))
 	}
@@ -148,12 +147,11 @@ func (p *parser) parseEscape(str string) (Regexp, string) {
 	switch str[1] {
 	case ' ', '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';',
 		'<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~':
-		return &ReLit{str[1:2]}, str[2:]
+		return ReLit(str[1:2]), str[2:]
 	case '0':
-		return &ReLit{"\000"}, str[2:]
+		return ReLit([]rune{0}), str[2:]
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		i, _ := strconv.ParseUint(str[1:2], 10, 32)
-		return ReBackRef(i), str[2:]
+		return ReBackRef(str[1] - '0'), str[2:]
 	default:
 		panic(fmt.Errorf("Unknown escape sequence: %q", str))
 	}
