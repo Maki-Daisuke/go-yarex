@@ -19,20 +19,21 @@ type matchContext struct {
 	parent *matchContext
 	index  uint
 	pos    int
+	str    []rune
 }
 
 func (c *matchContext) with(i uint, p int) matchContext {
-	return matchContext{c, i, p}
+	return matchContext{c, i, p, c.str}
 }
 
-func (c *matchContext) get(i uint) []int {
-	p := make([]int, 2, 2)
+// GetOffset returns (-1, -1) when it cannot find specified index.
+func (c *matchContext) GetOffset(i uint) (start int, end int) {
 	for ; ; c = c.parent {
 		if c == nil {
-			return nil
+			return -1, -1
 		}
 		if c.index == i {
-			p[1] = c.pos
+			end = c.pos
 			break
 		}
 	}
@@ -43,8 +44,16 @@ func (c *matchContext) get(i uint) []int {
 			panic("Undetermined capture")
 		}
 		if c.index == i {
-			p[0] = c.pos
-			return p
+			start = c.pos
+			return
 		}
 	}
+}
+
+func (c *matchContext) GetCaptured(i uint) []rune {
+	start, end := c.GetOffset(i)
+	if start < 0 {
+		return nil
+	}
+	return c.str[start:end]
 }
