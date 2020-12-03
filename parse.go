@@ -2,6 +2,8 @@ package reaot
 
 import (
 	"fmt"
+	"strconv"
+	"unicode"
 )
 
 func parse(s string) (re Regexp, err error) {
@@ -48,6 +50,8 @@ LOOP:
 			str = str[1:]
 		case '\\':
 			re, str = p.parseEscape(str)
+		case '[':
+			re, str = p.parseClass(str)
 		case '(':
 			re, str = p.parseGroup(str)
 		case ')', '|':
@@ -138,6 +142,10 @@ func (p *parser) parseQuantifier(str []rune, re Regexp) (Regexp, []rune) {
 }
 
 func (p *parser) parseEscape(str []rune) (Regexp, []rune) {
+	return p.parseEscapeAux(str, false)
+}
+
+func (p *parser) parseEscapeAux(str []rune, inClass bool) (Regexp, []rune) {
 	if str[0] != '\\' {
 		panic(fmt.Errorf("'\\' is expected, but cannot find: %q", str))
 	}
@@ -148,11 +156,96 @@ func (p *parser) parseEscape(str []rune) (Regexp, []rune) {
 	case ' ', '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';',
 		'<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~':
 		return ReLit(str[1:2]), str[2:]
-	case '0':
-		return ReLit([]rune{0}), str[2:]
-	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		return ReBackRef(str[1] - '0'), str[2:]
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		if str[2] < '0' || '9' < str[2] {
+			if str[1] == '0' {
+				return ReLit([]rune{0}), str[2:]
+			}
+			if !inClass {
+				return ReBackRef(str[1] - '0'), str[2:]
+			}
+			panic(fmt.Errorf("invalid character %q in octal escape: %q", str[2], str))
+		}
+		if str[3] < '0' || '9' < str[3] {
+			panic(fmt.Errorf("invalid character %q in octal escape: %q", str[3], str))
+		}
+		oct, err := strconv.ParseUint(string(str[1:4]), 8, 8)
+		if err != nil {
+			panic(fmt.Errorf("can't parse octal escape in %q: %w", str, err))
+		}
+		return ReLit([]rune{rune(oct)}), str[4:]
 	default:
 		panic(fmt.Errorf("Unknown escape sequence: %q", str))
 	}
+}
+
+func (p *parser) parseClass(str []rune) (Regexp, []rune) {
+	if str[0] != '[' {
+		panic(fmt.Errorf("'[' is expected, but cannot find: %q", string(str)))
+	}
+	origStr := str
+	str = str[1:]
+	rangeTable := &unicode.RangeTable{}
+	ccs := []CharClass{}
+	isNegate := false
+	if str[0] == '^' {
+		isNegate = true
+		str = str[1:]
+	}
+	if str[0] == ']' || str[0] == '-' {
+		rangeTable = mergeRangeTable(rangeTable, rangeTableFromTo(str[0], str[0]))
+		str = str[1:]
+	}
+LOOP:
+	for {
+		if len(str) == 0 {
+			panic(fmt.Errorf("unmatched '[' here: %q", string(origStr)))
+		}
+		if str[0] == ']' {
+			str = str[1:]
+			break LOOP
+		}
+		var from rune
+		if str[0] == '\\' {
+			var re Regexp
+			re, str = p.parseEscapeAux(str, true)
+			from = ([]rune)(re.(ReLit))[0] // This must work at least now
+		} else {
+			from = str[0]
+			str = str[1:]
+		}
+		if str[0] != '-' {
+			rangeTable = mergeRangeTable(rangeTable, rangeTableFromTo(from, from))
+			continue LOOP
+		}
+		switch str[1] { // In the case of character range, i.e. "X-Y"
+		case ']':
+			rangeTable = mergeRangeTable(rangeTable, rangeTableFromTo(from, from))
+			rangeTable = mergeRangeTable(rangeTable, rangeTableFromTo('-', '-'))
+			str = str[2:]
+			break LOOP
+		case '\\':
+			var re Regexp
+			re, str = p.parseEscapeAux(str[1:], true)
+			to := ([]rune)(re.(ReLit))[0] // This must work at least now
+			rangeTable = mergeRangeTable(rangeTable, rangeTableFromTo(from, to))
+			break
+		default:
+			rangeTable = mergeRangeTable(rangeTable, rangeTableFromTo(from, str[1]))
+			str = str[2:]
+		}
+	}
+	if rangeTable.R16 != nil || rangeTable.R32 != nil {
+		ccs = append(ccs, (*rangeTableClass)(rangeTable))
+	}
+	var out CharClass
+	if len(ccs) == 1 {
+		out = ccs[0]
+	} else {
+		out = compositeClass(ccs)
+	}
+	if isNegate {
+		out = NegateCharClass(out)
+	}
+	return ReCharClass{out}, str
 }

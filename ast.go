@@ -89,3 +89,11 @@ type ReAssertBegin struct{}
 func (re ReAssertBegin) String() string {
 	return "^"
 }
+
+type ReCharClass struct {
+	CharClass
+}
+
+func (re ReCharClass) String() string {
+	return "[" + re.CharClass.String() + "]"
+}

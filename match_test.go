@@ -173,3 +173,25 @@ func TestMatchBackRef(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchClass(t *testing.T) {
+	testMatchStrings(t, "[0aB]", []string{
+		"foo",      // false
+		"foo  bar", // true
+		"FOO BAR",  // true
+		"AAAAAA",   // false
+		"012345",   // true
+		"\000hoge", // false
+		"\000hage", // true
+	})
+	testMatchStrings(t, "[A-Z0-9][a-z]", []string{
+		"absksdjhasd",
+		"alsdAAA",
+		"asl;k3as7djj",
+		"Aiiiiiiii9",
+		"foo BAR",
+		"FOO bar",
+		"FOObar",
+		"fooBARbaz",
+	})
+}

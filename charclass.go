@@ -1,6 +1,7 @@
 package reaot
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
@@ -241,6 +242,27 @@ func mergeRangeTable(left, right *unicode.RangeTable) *unicode.RangeTable {
 		} else { // Otherwise, just append the next one.
 			out.R32 = append(out.R32, next)
 		}
+	}
+	return out
+}
+
+func rangeTableFromTo(lo, hi rune) *unicode.RangeTable {
+	if lo > hi {
+		panic(fmt.Errorf(`lo (%q) is higer than hi (%q)`, lo, hi))
+	}
+	out := &unicode.RangeTable{make([]unicode.Range16, 0, 1), make([]unicode.Range32, 0, 1), 0}
+	if lo <= 0xFFFF {
+		if hi <= 0xFFFF {
+			out.R16 = append(out.R16, unicode.Range16{Lo: uint16(lo), Hi: uint16(hi), Stride: 1})
+			if hi <= unicode.MaxLatin1 {
+				out.LatinOffset = 1
+			}
+		} else {
+			out.R16 = append(out.R16, unicode.Range16{Lo: uint16(lo), Hi: 0xFFFF, Stride: 1})
+			out.R32 = append(out.R32, unicode.Range32{Lo: 0x10000, Hi: uint32(hi), Stride: 1})
+		}
+	} else {
+		out.R32 = append(out.R32, unicode.Range32{Lo: uint32(lo), Hi: uint32(hi), Stride: 1})
 	}
 	return out
 }
