@@ -27,11 +27,11 @@ type parser struct {
 
 func (*parser) parseLit(str []rune) (Regexp, []rune) {
 	if len(str) == 0 {
-		panic(fmt.Errorf("Litetal is expected, but reached end-of-string unexpectedly"))
+		panic(fmt.Errorf("Literal is expected, but reached end-of-string unexpectedly"))
 	}
 	switch str[0] {
 	case '$', '^', '*', '(', ')', '+', '[', ']', '{', '}', '|', '\\', '.', '?':
-		panic(fmt.Errorf("Litetal is expected, but cannot find: %q", str))
+		panic(fmt.Errorf("Literal is expected, but cannot find: %q", string(str)))
 	}
 	return ReLit(str[0:1]), str[1:]
 }
@@ -82,7 +82,7 @@ LOOP:
 		case ')':
 			break LOOP
 		default:
-			panic(fmt.Errorf("Unknown context: %q", str))
+			panic(fmt.Errorf("Unknown context: %q", string(str)))
 		}
 	}
 	if len(opts) == 1 {
@@ -94,20 +94,20 @@ LOOP:
 
 func (p *parser) parseGroup(str []rune) (Regexp, []rune) {
 	if str[0] != '(' {
-		panic(fmt.Errorf("'(' is expected, but cannot find: %q", str))
+		panic(fmt.Errorf("'(' is expected, but cannot find: %q", string(str)))
 	}
 	if len(str) < 2 {
-		panic(fmt.Errorf("Unmatched '(' : %q", str))
+		panic(fmt.Errorf("Unmatched '(' : %q", string(str)))
 	}
 	if str[1] != '?' {
 		return p.parseCapture(str[1:])
 	}
 	if str[2] != ':' {
-		panic(fmt.Errorf("Unknown extended pattern syntzx: %q", str))
+		panic(fmt.Errorf("Unknown extended pattern syntzx: %q", string(str)))
 	}
 	re, remain := p.parseAlt(str[1:])
 	if remain[0] != ')' {
-		panic(fmt.Errorf("Unmatched '(' : %q", str))
+		panic(fmt.Errorf("Unmatched '(' : %q", string(str)))
 	}
 	return re, remain[1:]
 }
@@ -117,7 +117,7 @@ func (p *parser) parseCapture(str []rune) (Regexp, []rune) {
 	index := p.openCaptures
 	re, remain := p.parseAlt(str)
 	if remain[0] != ')' {
-		panic(fmt.Errorf("Unmatched '(' : %q", str))
+		panic(fmt.Errorf("Unmatched '(' : %q", string(str)))
 	}
 	p.closeCaptures++
 	return &ReCap{index, re}, remain[1:]
@@ -182,10 +182,10 @@ func (p *parser) parseEscape(str []rune) (Regexp, []rune) {
 
 func (p *parser) parseEscapeAux(str []rune, inClass bool) (Regexp, []rune) {
 	if str[0] != '\\' {
-		panic(fmt.Errorf("'\\' is expected, but cannot find: %q", str))
+		panic(fmt.Errorf("'\\' is expected, but cannot find: %q", string(str)))
 	}
 	if len(str) < 2 {
-		panic(fmt.Errorf("Trailing '\\' in regex: %q", str))
+		panic(fmt.Errorf("Trailing '\\' in regex: %q", string(str)))
 	}
 	switch str[1] {
 	case ' ', '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';',
@@ -199,18 +199,18 @@ func (p *parser) parseEscapeAux(str []rune, inClass bool) (Regexp, []rune) {
 			if !inClass {
 				return ReBackRef(str[1] - '0'), str[2:]
 			}
-			panic(fmt.Errorf("invalid character %q in octal escape: %q", str[2], str))
+			panic(fmt.Errorf("invalid character %q in octal escape: %q", str[2], string(str)))
 		}
 		if str[3] < '0' || '9' < str[3] {
-			panic(fmt.Errorf("invalid character %q in octal escape: %q", str[3], str))
+			panic(fmt.Errorf("invalid character %q in octal escape: %q", str[3], string(str)))
 		}
 		oct, err := strconv.ParseUint(string(str[1:4]), 8, 8)
 		if err != nil {
-			panic(fmt.Errorf("can't parse octal escape in %q: %w", str, err))
+			panic(fmt.Errorf("can't parse octal escape in %q: %w", string(str), err))
 		}
 		return ReLit([]rune{rune(oct)}), str[4:]
 	default:
-		panic(fmt.Errorf("Unknown escape sequence: %q", str))
+		panic(fmt.Errorf("Unknown escape sequence: %q", string(str)))
 	}
 }
 
