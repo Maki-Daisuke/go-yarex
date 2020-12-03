@@ -45,28 +45,28 @@ func (re ReNotNewline) String() string {
 	return "."
 }
 
-type ReZeroOrMore struct {
-	re Regexp
+type ReRepeat struct {
+	re       Regexp
+	min, max int // -1 means unlimited
 }
 
-func (re *ReZeroOrMore) String() string {
-	return re.re.String() + "*"
-}
-
-type ReOneOrMore struct {
-	re Regexp
-}
-
-func (re *ReOneOrMore) String() string {
-	return re.re.String() + "+"
-}
-
-type ReOpt struct {
-	re Regexp
-}
-
-func (re *ReOpt) String() string {
-	return re.re.String() + "?"
+func (re *ReRepeat) String() string {
+	if re.min == 0 && re.max == 1 {
+		return re.re.String() + "?"
+	}
+	if re.min == 0 && re.max < 0 {
+		return re.re.String() + "*"
+	}
+	if re.min == 1 && re.max < 0 {
+		return re.re.String() + "+"
+	}
+	if re.min == re.max {
+		return fmt.Sprintf("%s{%d}", re.re.String(), re.min)
+	}
+	if re.max < 0 {
+		return fmt.Sprintf("%s{%d,}", re.re.String(), re.min)
+	}
+	return fmt.Sprintf("%s{%d,%d}", re.re.String(), re.min, re.max)
 }
 
 type ReCap struct {

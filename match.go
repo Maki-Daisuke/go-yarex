@@ -46,34 +46,30 @@ func (r *ReAlt) match(c matchContext, p int, k func(matchContext, int) *matchCon
 	return nil
 }
 
-func (r *ReZeroOrMore) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (r *ReRepeat) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
 	re := r.re
-	c1 := re.match(c, p, func(c matchContext, p1 int) *matchContext {
-		if p1 == p { // This means zero-length assertion pattern matched.
-			return k(c, p1) // So, move ahead to the following pattern.
+	prev := -1 // initial value must be a number which never equal to any position (i.e. positive integer)
+	var loop func(count int) func(matchContext, int) *matchContext
+	loop = func(count int) func(matchContext, int) *matchContext {
+		return func(c matchContext, p int) *matchContext {
+			if prev == p { // Matched zero-length assertion. So, move ahead the next pattern.
+				return k(c, p)
+			}
+			prev = p
+			if count < r.min {
+				return re.match(c, p, loop(count+1))
+			}
+			if count == r.max {
+				return k(c, p)
+			}
+			c1 := re.match(c, p, loop(count+1))
+			if c1 != nil {
+				return c1
+			}
+			return k(c, p)
 		}
-		return r.match(c, p1, k)
-	})
-	if c1 != nil {
-		return c1
 	}
-	return k(c, p)
-}
-
-func (r *ReOneOrMore) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
-	re := r.re
-	if c1 := re.match(c, p, func(c matchContext, p1 int) *matchContext { return (&ReZeroOrMore{re}).match(c, p1, k) }); c1 != nil {
-		return c1
-	}
-	return nil
-}
-
-func (r *ReOpt) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
-	re := r.re
-	if c1 := re.match(c, p, k); c1 != nil {
-		return c1
-	}
-	return k(c, p)
+	return loop(0)(c, p)
 }
 
 func (r *ReCap) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {

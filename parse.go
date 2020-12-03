@@ -129,16 +129,51 @@ func (p *parser) parseQuantifier(str []rune, re Regexp) (Regexp, []rune) {
 	}
 	switch str[0] {
 	case '*':
-		re = &ReZeroOrMore{re}
-		str = str[1:]
+		return &ReRepeat{re, 0, -1}, str[1:]
 	case '+':
-		re = &ReOneOrMore{re}
-		str = str[1:]
+		return &ReRepeat{re, 1, -1}, str[1:]
 	case '?':
-		re = &ReOpt{re}
-		str = str[1:]
+		return &ReRepeat{re, 0, 1}, str[1:]
+	case '{':
+		start, remain := p.parseInt(str[1:])
+		if remain == nil {
+			panic(fmt.Errorf(`Invalid quantifier: %q`, string(str)))
+		}
+		switch remain[0] {
+		case '}':
+			return &ReRepeat{re, start, start}, remain[1:]
+		case ',':
+			end, remain := p.parseInt(remain[1:])
+			if remain == nil {
+				panic(fmt.Errorf(`Invalid quantifier: %q`, string(str)))
+			}
+			if remain[0] != '}' {
+				panic(fmt.Errorf("Unmatched '{' : %q", string(str)))
+			}
+			return &ReRepeat{re, start, end}, remain[1:]
+		default:
+			panic(fmt.Errorf("Unmatched '{' : %q", string(str)))
+		}
 	}
 	return re, str
+}
+
+// parseInt returns (0, nil) if it cannot find any integer at the head of str
+func (p *parser) parseInt(str []rune) (int, []rune) {
+	i := 0
+	for ; i < len(str); i++ {
+		if str[i] < '0' || '9' < str[i] {
+			break
+		}
+	}
+	if i == 0 {
+		return 0, nil
+	}
+	x, err := strconv.ParseInt(string(str[0:i]), 10, 32)
+	if err != nil {
+		panic(fmt.Errorf(`(THIS SHOULD NOT HAPPEN) can't parse int: %q`, string(str[0:i])))
+	}
+	return int(x), str[i:]
 }
 
 func (p *parser) parseEscape(str []rune) (Regexp, []rune) {

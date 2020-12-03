@@ -82,6 +82,19 @@ func TestMatchOneOrMore(t *testing.T) {
 	})
 }
 
+func TestMatchQuantifier(t *testing.T) {
+	testMatchStrings(t, "fo{2,5}oh", []string{
+		"fooh",
+		"foh",
+		"fh",
+		"fooooooooooh",
+		"fooooooooofoooh",
+		"",
+		"fo",
+		"oh",
+	})
+}
+
 func TestMatchOpt(t *testing.T) {
 	testMatchStrings(t, "fo?oh", []string{
 		"fooh",
