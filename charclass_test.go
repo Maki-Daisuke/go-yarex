@@ -53,8 +53,8 @@ func TestNegateCharClass_Alpha(t *testing.T) {
 
 func TestNegateCharClass_Lm(t *testing.T) {
 	notLm := NegateCharClass((*rangeTableClass)(unicode.Lm))
-	if _, ok := notLm.(funcClass); !ok {
-		t.Errorf("notLm should be of type funcClass, but actually of type %T", notLm)
+	if _, ok := notLm.(negClass); !ok {
+		t.Errorf("notLm should be of type negClass, but actually of type %T", notLm)
 	}
 	for i := '\000'; i <= 0xFFFFF; i++ { // Test only up to 0xFFFFF due to long-running test
 		if notLm.Contains(i) != !unicode.Is(unicode.Lm, i) {

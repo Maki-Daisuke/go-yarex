@@ -12,10 +12,10 @@ func (rt *rangeTableClass) Contains(r rune) bool {
 	return unicode.Is((*unicode.RangeTable)(rt), r)
 }
 
-type funcClass func(r rune) bool
+type negClass struct{ CharClass }
 
-func (fc funcClass) Contains(r rune) bool {
-	return fc(r)
+func (nc negClass) Contains(r rune) bool {
+	return !nc.CharClass.Contains(r)
 }
 
 type compositeClass []CharClass
@@ -36,9 +36,7 @@ func NegateCharClass(c CharClass) CharClass {
 			return (*rangeTableClass)(neg)
 		}
 	}
-	return funcClass(func(r rune) bool {
-		return !c.Contains(r)
-	})
+	return negClass{c}
 }
 
 // negateRangeTable can only negate RageTables in which Stride = 1, and returns nil
