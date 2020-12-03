@@ -27,6 +27,26 @@ var classDigit = (*rangeTableClass)(&unicode.RangeTable{
 	LatinOffset: 1,
 })
 
+func TestRangeTableClass(t *testing.T) {
+	aB0 := (*rangeTableClass)(&unicode.RangeTable{[]unicode.Range16{{'0', '0', '\x01'}, {'B', 'B', '\x01'}, {'a', 'a', '\x01'}}, []unicode.Range32{}, 3})
+	if aB0.String() != "0Ba" {
+		t.Errorf("expect %q, but got %q", "0Ba", aB0)
+	}
+	for i := '\000'; i <= 0xFFFFF; i++ { // Test only up to 0xFFFFF due to long-running test
+		switch i {
+		case 'a', 'B', '0':
+			if !aB0.Contains(i) {
+				t.Errorf("aB0.Contains(%q) should be true, but actually false", i)
+			}
+			break
+		default:
+			if aB0.Contains(i) {
+				t.Errorf("aB0.Contains(%q) should be false, but actually true", i)
+			}
+		}
+	}
+}
+
 func TestNegateCharClass_LowerAlpha(t *testing.T) {
 	notLowerAlpha := NegateCharClass(classLowerAlpha)
 	if _, ok := notLowerAlpha.(*rangeTableClass); !ok {
