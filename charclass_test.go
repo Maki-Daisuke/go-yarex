@@ -78,6 +78,9 @@ func TestNegateCharClass_Nd(t *testing.T) {
 
 func TestMergeCharClass_AlphaNum(t *testing.T) {
 	alphanum := MergeCharClass(classLowerAlpha, classAlpha, classDigit)
+	if _, ok := alphanum.(*rangeTableClass); !ok {
+		t.Errorf("alphanum should be of type *rangeTableClass, but actually of type %T", alphanum)
+	}
 	for i := '\000'; i <= 0xFFFFF; i++ { // Test only up to 0xFFFFF due to long-running test
 		if alphanum.Contains(i) != ('A' <= i && i <= 'Z' || 'a' <= i && i <= 'z' || '0' <= i && i <= '9') {
 			t.Errorf("alphanum.Contains(0x%x) should be %t, but actually not", i, ('A' <= i && i <= 'Z' || 'a' <= i && i <= 'z' || '0' <= i && i <= '9'))
