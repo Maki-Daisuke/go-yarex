@@ -1,9 +1,14 @@
 package reaot
 
-import "unicode"
+import (
+	"regexp"
+	"strings"
+	"unicode"
+)
 
 type CharClass interface {
 	Contains(r rune) bool
+	String() string
 }
 
 type rangeTableClass unicode.RangeTable
@@ -12,10 +17,37 @@ func (rt *rangeTableClass) Contains(r rune) bool {
 	return unicode.Is((*unicode.RangeTable)(rt), r)
 }
 
+func (rt *rangeTableClass) String() string {
+	var buf strings.Builder
+	for _, r := range rt.R16 {
+		if r.Lo == r.Hi {
+			buf.WriteString(regexp.QuoteMeta(string([]rune{rune(r.Lo)})))
+		} else {
+			buf.WriteString(regexp.QuoteMeta(string([]rune{rune(r.Lo)})))
+			buf.WriteString("-")
+			buf.WriteString(regexp.QuoteMeta(string([]rune{rune(r.Hi)})))
+		}
+	}
+	for _, r := range rt.R32 {
+		if r.Lo == r.Hi {
+			buf.WriteString(regexp.QuoteMeta(string([]rune{rune(r.Lo)})))
+		} else {
+			buf.WriteString(regexp.QuoteMeta(string([]rune{rune(r.Lo)})))
+			buf.WriteString("-")
+			buf.WriteString(regexp.QuoteMeta(string([]rune{rune(r.Hi)})))
+		}
+	}
+	return buf.String()
+}
+
 type negClass struct{ CharClass }
 
 func (nc negClass) Contains(r rune) bool {
 	return !nc.CharClass.Contains(r)
+}
+
+func (nc negClass) String() string {
+	return "^" + nc.CharClass.String()
 }
 
 type compositeClass []CharClass
@@ -27,6 +59,14 @@ func (cc compositeClass) Contains(r rune) bool {
 		}
 	}
 	return false
+}
+
+func (cc compositeClass) String() string {
+	var buf strings.Builder
+	for _, c := range ([]CharClass)(cc) {
+		buf.WriteString(c.String())
+	}
+	return buf.String()
 }
 
 func NegateCharClass(c CharClass) CharClass {

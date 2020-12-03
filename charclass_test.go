@@ -56,6 +56,9 @@ func TestNegateCharClass_Lm(t *testing.T) {
 	if _, ok := notLm.(negClass); !ok {
 		t.Errorf("notLm should be of type negClass, but actually of type %T", notLm)
 	}
+	if notLm.String()[0] != '^' {
+		t.Errorf("expect %q, but got %q", "^...", notLm.String())
+	}
 	for i := '\000'; i <= 0xFFFFF; i++ { // Test only up to 0xFFFFF due to long-running test
 		if notLm.Contains(i) != !unicode.Is(unicode.Lm, i) {
 			t.Errorf("notLm.Contains(0x%x) should be %t, but actually not", i, !unicode.Is(unicode.Lm, i))
@@ -80,6 +83,9 @@ func TestMergeCharClass_AlphaNum(t *testing.T) {
 	alphanum := MergeCharClass(classLowerAlpha, classAlpha, classDigit)
 	if _, ok := alphanum.(*rangeTableClass); !ok {
 		t.Errorf("alphanum should be of type *rangeTableClass, but actually of type %T", alphanum)
+	}
+	if alphanum.String() != "0-9A-Za-z" {
+		t.Errorf("expect %q, but got %q", "0-9A-Za-z", alphanum)
 	}
 	for i := '\000'; i <= 0xFFFFF; i++ { // Test only up to 0xFFFFF due to long-running test
 		if alphanum.Contains(i) != ('A' <= i && i <= 'Z' || 'a' <= i && i <= 'z' || '0' <= i && i <= '9') {
