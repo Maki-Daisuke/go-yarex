@@ -45,6 +45,9 @@ LOOP:
 		case '^':
 			re = ReAssertBegin{}
 			str = str[1:]
+		case '$':
+			re = ReAssertEnd{}
+			str = str[1:]
 		case '.':
 			re = ReNotNewline{}
 			str = str[1:]

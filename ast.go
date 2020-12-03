@@ -90,6 +90,12 @@ func (re ReAssertBegin) String() string {
 	return "^"
 }
 
+type ReAssertEnd struct{}
+
+func (re ReAssertEnd) String() string {
+	return "$"
+}
+
 type ReCharClass struct {
 	CharClass
 }

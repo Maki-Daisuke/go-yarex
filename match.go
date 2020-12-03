@@ -95,6 +95,13 @@ func (re ReAssertBegin) match(c matchContext, p int, k func(matchContext, int) *
 	return k(c, p)
 }
 
+func (re ReAssertEnd) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+	if p != len(c.str) {
+		return nil
+	}
+	return k(c, p)
+}
+
 func (re ReCharClass) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
 	if len(c.str) < p+1 {
 		return nil
