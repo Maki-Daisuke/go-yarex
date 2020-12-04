@@ -7,6 +7,7 @@ import (
 
 func testMatchStrings(t *testing.T, restr string, tests []string) {
 	re, err := parse(restr)
+	re = optimize(re)
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
