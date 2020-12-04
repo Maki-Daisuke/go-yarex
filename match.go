@@ -55,63 +55,39 @@ func (r *ReRepeat) match(c matchContext, p int, k func(matchContext, int) *match
 		if width == 0 {
 			return k(c, p)
 		}
-		p1 := p
-		i := 0
-		if r.max < 0 {
-			for strings.HasPrefix(c.str[p1:], s) {
-				i++
-				p1 += width
+		var loop func(int, int) *matchContext
+		loop = func(n int, p int) *matchContext {
+			if (r.max < 0 || n < r.max) && strings.HasPrefix(c.str[p:], s) {
+				ret := loop(n+1, p+width)
+				if ret != nil {
+					return ret
+				}
 			}
-		} else {
-			for i < r.max && strings.HasPrefix(c.str[p1:], s) {
-				i++
-				p1 += width
+			if n < r.min {
+				return nil
 			}
+			return k(c, p)
 		}
-		for i >= r.min { // Try backtrack
-			if ret := k(c, p1); ret != nil {
-				return ret
-			}
-			p1 -= width
-			i--
-		}
-		return nil
+		return loop(0, p)
 	case ReCharClass:
 		cc := re.CharClass
-		stack := make([]int, 0, 64)
-		stack = append(stack, p)
-		p1 := p
-		i := 0
-		if r.max < 0 {
-			for p1 < len(c.str) {
-				r, size := utf8.DecodeRuneInString(c.str[p1:])
-				if cc.Contains(r) {
-					p1 += size
-					i++
-					stack = append(stack, p1)
-				} else {
-					break
+		var loop func(int, int) *matchContext
+		loop = func(n int, p int) *matchContext {
+			if p < len(c.str) && (r.max < 0 || n < r.max) {
+				r, size := utf8.DecodeRuneInString(c.str[p:])
+				if size > 0 && cc.Contains(r) {
+					ret := loop(n+1, p+size)
+					if ret != nil {
+						return ret
+					}
 				}
 			}
-		} else {
-			for i < r.max && p1 < len(c.str) {
-				r, size := utf8.DecodeRuneInString(c.str[p1:])
-				if cc.Contains(r) {
-					p1 += size
-					i++
-					stack = append(stack, p1)
-				} else {
-					break
-				}
+			if n < r.min {
+				return nil
 			}
+			return k(c, p)
 		}
-		for i >= r.min { // Try backtrack
-			if ret := k(c, stack[i]); ret != nil {
-				return ret
-			}
-			i--
-		}
-		return nil
+		return loop(0, p)
 	default:
 		prev := -1 // initial value must be a number which never equal to any position (i.e. positive integer)
 		var loop func(count int) func(matchContext, int) *matchContext
