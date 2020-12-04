@@ -30,12 +30,17 @@ func (re ReNotNewline) match(c matchContext, p int, k func(matchContext, int) *m
 }
 
 func (r *ReSeq) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
-	if len(r.seq) == 0 {
-		return k(c, p)
+	seq := r.seq
+	var loop func(int) func(matchContext, int) *matchContext
+	loop = func(i int) func(c matchContext, p int) *matchContext {
+		return func(c matchContext, p int) *matchContext {
+			if i < len(seq) {
+				return seq[i].match(c, p, loop(i+1))
+			}
+			return k(c, p)
+		}
 	}
-	return r.seq[0].match(c, p, func(c matchContext, p1 int) *matchContext {
-		return (&ReSeq{r.seq[1:]}).match(c, p1, k)
-	})
+	return loop(0)(c, p)
 }
 
 func (r *ReAlt) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
