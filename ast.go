@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-type ReLit []rune
+type ReLit string
 
 func (re ReLit) String() string {
 	return string(re)

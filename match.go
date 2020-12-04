@@ -1,8 +1,13 @@
 package reaot
 
+import (
+	"strings"
+	"unicode/utf8"
+)
+
 func Match(re Regexp, s string) bool {
 	for i := 0; i < len(s); i++ {
-		if re.match(matchContext{nil, 0, i, []rune(s)}, i, func(c matchContext, _ int) *matchContext { return &c }) != nil {
+		if re.match(matchContext{nil, 0, i, s}, i, func(c matchContext, _ int) *matchContext { return &c }) != nil {
 			return true
 		}
 	}
@@ -10,19 +15,15 @@ func Match(re Regexp, s string) bool {
 }
 
 func (re ReLit) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
-	if len(c.str)-p < len(re) {
+	lit := string(re)
+	if !strings.HasPrefix(c.str[p:], lit) {
 		return nil
 	}
-	for i := 0; i < len(re); i++ {
-		if c.str[p+i] != re[i] {
-			return nil
-		}
-	}
-	return k(c, p+len(re))
+	return k(c, p+len(lit))
 }
 
 func (re ReNotNewline) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
-	if len(c.str) <= p || c.str[0] == '\n' {
+	if !(p < len(c.str)) || c.str[0] == '\n' {
 		return nil
 	}
 	return k(c, p+1)
@@ -79,10 +80,8 @@ func (r *ReCap) match(c matchContext, p int, k func(matchContext, int) *matchCon
 }
 
 func (r ReBackRef) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
-	cap := (&c).GetCaptured(uint(r))
-	if cap == nil {
-		// This means that the specified capture groups haven't matched any substring.
-		// It always fails (according to Perl regex).
+	cap, ok := (&c).GetCaptured(uint(r))
+	if !ok {
 		return nil
 	}
 	return ReLit(cap).match(c, p, k)
@@ -106,8 +105,9 @@ func (re ReCharClass) match(c matchContext, p int, k func(matchContext, int) *ma
 	if len(c.str) < p+1 {
 		return nil
 	}
-	if !re.Contains(c.str[p]) {
+	r, size := utf8.DecodeRuneInString(c.str[p:])
+	if !re.Contains(r) {
 		return nil
 	}
-	return k(c, p+1)
+	return k(c, p+size)
 }

@@ -19,7 +19,7 @@ type matchContext struct {
 	parent *matchContext
 	index  uint
 	pos    int
-	str    []rune
+	str    string
 }
 
 func (c *matchContext) with(i uint, p int) matchContext {
@@ -50,10 +50,10 @@ func (c *matchContext) GetOffset(i uint) (start int, end int) {
 	}
 }
 
-func (c *matchContext) GetCaptured(i uint) []rune {
+func (c *matchContext) GetCaptured(i uint) (string, bool) {
 	start, end := c.GetOffset(i)
 	if start < 0 {
-		return nil
+		return "", false
 	}
-	return c.str[start:end]
+	return c.str[start:end], true
 }
