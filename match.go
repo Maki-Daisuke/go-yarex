@@ -48,29 +48,94 @@ func (r *ReAlt) match(c matchContext, p int, k func(matchContext, int) *matchCon
 }
 
 func (r *ReRepeat) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
-	re := r.re
-	prev := -1 // initial value must be a number which never equal to any position (i.e. positive integer)
-	var loop func(count int) func(matchContext, int) *matchContext
-	loop = func(count int) func(matchContext, int) *matchContext {
-		return func(c matchContext, p int) *matchContext {
-			if prev == p { // Matched zero-length assertion. So, move ahead the next pattern.
-				return k(c, p)
-			}
-			prev = p
-			if count < r.min {
-				return re.match(c, p, loop(count+1))
-			}
-			if count == r.max {
-				return k(c, p)
-			}
-			c1 := re.match(c, p, loop(count+1))
-			if c1 != nil {
-				return c1
-			}
+	switch re := r.re.(type) {
+	case ReLit:
+		s := string(re)
+		width := len(s)
+		if width == 0 {
 			return k(c, p)
 		}
+		p1 := p
+		i := 0
+		if r.max < 0 {
+			for strings.HasPrefix(c.str[p1:], s) {
+				i++
+				p1 += width
+			}
+		} else {
+			for i < r.max && strings.HasPrefix(c.str[p1:], s) {
+				i++
+				p1 += width
+			}
+		}
+		for i >= r.min { // Try backtrack
+			if ret := k(c, p1); ret != nil {
+				return ret
+			}
+			p1 -= width
+			i--
+		}
+		return nil
+	case ReCharClass:
+		cc := re.CharClass
+		stack := make([]int, 0, 64)
+		stack = append(stack, p)
+		p1 := p
+		i := 0
+		if r.max < 0 {
+			for p1 < len(c.str) {
+				r, size := utf8.DecodeRuneInString(c.str[p1:])
+				if cc.Contains(r) {
+					p1 += size
+					i++
+					stack = append(stack, p1)
+				} else {
+					break
+				}
+			}
+		} else {
+			for i < r.max && p1 < len(c.str) {
+				r, size := utf8.DecodeRuneInString(c.str[p1:])
+				if cc.Contains(r) {
+					p1 += size
+					i++
+					stack = append(stack, p1)
+				} else {
+					break
+				}
+			}
+		}
+		for i >= r.min { // Try backtrack
+			if ret := k(c, stack[i]); ret != nil {
+				return ret
+			}
+			i--
+		}
+		return nil
+	default:
+		prev := -1 // initial value must be a number which never equal to any position (i.e. positive integer)
+		var loop func(count int) func(matchContext, int) *matchContext
+		loop = func(count int) func(matchContext, int) *matchContext {
+			return func(c matchContext, p int) *matchContext {
+				if prev == p { // Matched zero-length assertion. So, move ahead the next pattern.
+					return k(c, p)
+				}
+				prev = p
+				if count < r.min {
+					return re.match(c, p, loop(count+1))
+				}
+				if count == r.max {
+					return k(c, p)
+				}
+				c1 := re.match(c, p, loop(count+1))
+				if c1 != nil {
+					return c1
+				}
+				return k(c, p)
+			}
+		}
+		return loop(0)(c, p)
 	}
-	return loop(0)(c, p)
 }
 
 func (r *ReCap) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
