@@ -209,3 +209,13 @@ func TestMatchClass(t *testing.T) {
 		"fooBARbaz",
 	})
 }
+
+func TestSipAddress(t *testing.T) {
+	testMatchStrings(t, `^["]{0,1}([^"]*)["]{0,1}[ ]*<(sip|tel|sips):(([^@]*)@){0,1}([^>^:]*|\[[a-fA-F0-9:]*\]):{0,1}([0-9]*){0,1}>(;.*){0,1}$`, []string{
+		"\"display_name\"<sip:0312341234@10.0.0.1:5060>;user=phone;hogehoge",
+		"<sip:0312341234@10.0.0.1>",
+		"\"display_name\"<sip:0312341234@10.0.0.1>",
+		"<sip:whois.this>;user=phone",
+		"\"0333334444\"<sip:[2001:30:fe::4:123]>;user=phone",
+	})
+}
