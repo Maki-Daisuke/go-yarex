@@ -36,7 +36,7 @@ func BenchmarkSipPattern_Rere(b *testing.B) {
 func BenchmarkSipPattern_Optimized(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, s := range testStrings {
-			Match(sipReRe, s)
+			Match(sipReOpt, s)
 		}
 	}
 }
