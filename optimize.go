@@ -14,6 +14,7 @@ func optimizeJoinLiterals(re Regexp) Regexp {
 		out := make([]Regexp, 0, len(v.seq))
 		var acc *string = nil
 		for _, r := range v.seq {
+			r = optimizeJoinLiterals(r)
 			if lit, ok := r.(ReLit); ok {
 				if acc == nil {
 					s := string(lit)
