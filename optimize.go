@@ -3,18 +3,19 @@ package reaot
 import "unicode"
 
 func optimize(re Regexp) Regexp {
-	re = optimizeJoinLiterals(re)
 	re = optimizeSingleCharacterClass(re)
+	re = optimizeUnwrapSingletonSeqAndAlt(re)
 	return re
 }
 
-func optimizeJoinLiterals(re Regexp) Regexp {
+// Join adjacent literals and unwrap seq and alt containing a single re as much as possible
+func optimizeUnwrapSingletonSeqAndAlt(re Regexp) Regexp {
 	switch v := re.(type) {
 	case *ReSeq:
 		out := make([]Regexp, 0, len(v.seq))
 		var acc *string = nil
 		for _, r := range v.seq {
-			r = optimizeJoinLiterals(r)
+			r = optimizeUnwrapSingletonSeqAndAlt(r)
 			if lit, ok := r.(ReLit); ok {
 				if acc == nil {
 					s := string(lit)
@@ -33,20 +34,32 @@ func optimizeJoinLiterals(re Regexp) Regexp {
 		if acc != nil {
 			out = append(out, ReLit(*acc))
 		}
+		switch len(out) {
+		case 0:
+			return ReLit("")
+		case 1:
+			return out[0]
+		}
 		return &ReSeq{out}
 	case *ReAlt:
 		out := make([]Regexp, len(v.opts), len(v.opts))
 		for i, r := range v.opts {
-			out[i] = optimizeJoinLiterals(r)
+			out[i] = optimizeUnwrapSingletonSeqAndAlt(r)
+		}
+		switch len(out) {
+		case 0:
+			return ReLit("")
+		case 1:
+			return out[0]
 		}
 		return &ReAlt{out}
 	case *ReRepeat:
 		out := *v
-		out.re = optimizeJoinLiterals(v.re)
+		out.re = optimizeUnwrapSingletonSeqAndAlt(v.re)
 		return &out
 	case *ReCap:
 		out := *v
-		out.re = optimizeJoinLiterals(v.re)
+		out.re = optimizeUnwrapSingletonSeqAndAlt(v.re)
 		return &out
 	default:
 		return v
