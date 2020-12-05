@@ -20,7 +20,7 @@ func Match(re Regexp, s string) bool {
 	return false
 }
 
-func (re ReLit) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (re ReLit) match(c matchContext, p int, k Continuation) *matchContext {
 	lit := string(re)
 	if !strings.HasPrefix(c.str[p:], lit) {
 		return nil
@@ -28,16 +28,16 @@ func (re ReLit) match(c matchContext, p int, k func(matchContext, int) *matchCon
 	return k(c, p+len(lit))
 }
 
-func (re ReNotNewline) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (re ReNotNewline) match(c matchContext, p int, k Continuation) *matchContext {
 	if !(p < len(c.str)) || c.str[0] == '\n' {
 		return nil
 	}
 	return k(c, p+1)
 }
 
-func (r *ReSeq) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (r *ReSeq) match(c matchContext, p int, k Continuation) *matchContext {
 	seq := r.seq
-	var loop func(int) func(matchContext, int) *matchContext
+	var loop func(int) Continuation
 	loop = func(i int) func(c matchContext, p int) *matchContext {
 		return func(c matchContext, p int) *matchContext {
 			if i < len(seq) {
@@ -49,7 +49,7 @@ func (r *ReSeq) match(c matchContext, p int, k func(matchContext, int) *matchCon
 	return loop(0)(c, p)
 }
 
-func (r *ReAlt) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (r *ReAlt) match(c matchContext, p int, k Continuation) *matchContext {
 	for _, re := range r.opts {
 		if c1 := re.match(c, p, k); c1 != nil {
 			return c1
@@ -58,7 +58,7 @@ func (r *ReAlt) match(c matchContext, p int, k func(matchContext, int) *matchCon
 	return nil
 }
 
-func (r *ReRepeat) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (r *ReRepeat) match(c matchContext, p int, k Continuation) *matchContext {
 	switch re := r.re.(type) {
 	case ReLit:
 		s := string(re)
@@ -125,8 +125,8 @@ func (r *ReRepeat) match(c matchContext, p int, k func(matchContext, int) *match
 		return nil
 	default:
 		prev := -1 // initial value must be a number which never equal to any position (i.e. positive integer)
-		var loop func(count int) func(matchContext, int) *matchContext
-		loop = func(count int) func(matchContext, int) *matchContext {
+		var loop func(count int) Continuation
+		loop = func(count int) Continuation {
 			return func(c matchContext, p int) *matchContext {
 				if prev == p { // Matched zero-length assertion. So, move ahead the next pattern.
 					return k(c, p)
@@ -149,13 +149,13 @@ func (r *ReRepeat) match(c matchContext, p int, k func(matchContext, int) *match
 	}
 }
 
-func (r *ReCap) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (r *ReCap) match(c matchContext, p int, k Continuation) *matchContext {
 	return r.re.match(c.with(r.index, p), p, func(c matchContext, p1 int) *matchContext {
 		return k((&c).with(r.index, p1), p1)
 	})
 }
 
-func (r ReBackRef) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (r ReBackRef) match(c matchContext, p int, k Continuation) *matchContext {
 	cap, ok := (&c).GetCaptured(uint(r))
 	if !ok {
 		return nil
@@ -163,21 +163,21 @@ func (r ReBackRef) match(c matchContext, p int, k func(matchContext, int) *match
 	return ReLit(cap).match(c, p, k)
 }
 
-func (re ReAssertBegin) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (re ReAssertBegin) match(c matchContext, p int, k Continuation) *matchContext {
 	if p != 0 {
 		return nil
 	}
 	return k(c, p)
 }
 
-func (re ReAssertEnd) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (re ReAssertEnd) match(c matchContext, p int, k Continuation) *matchContext {
 	if p != len(c.str) {
 		return nil
 	}
 	return k(c, p)
 }
 
-func (re ReCharClass) match(c matchContext, p int, k func(matchContext, int) *matchContext) *matchContext {
+func (re ReCharClass) match(c matchContext, p int, k Continuation) *matchContext {
 	if len(c.str) < p+1 {
 		return nil
 	}
