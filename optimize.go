@@ -104,3 +104,34 @@ func optimizeSingleCharacterClass(re Regexp) Regexp {
 		return v
 	}
 }
+
+func canOnlyMatchAtBegining(re Regexp) bool {
+	switch v := re.(type) {
+	case ReAssertBegin:
+		return true
+	case *ReSeq:
+		if len(v.seq) == 0 {
+			return false
+		}
+		return canOnlyMatchAtBegining(v.seq[0])
+	case *ReAlt:
+		if len(v.opts) == 0 {
+			return false
+		}
+		for _, r := range v.opts {
+			if !canOnlyMatchAtBegining(r) {
+				return false
+			}
+		}
+		return true
+	case *ReRepeat:
+		if v.min == 0 {
+			return false
+		}
+		return canOnlyMatchAtBegining(v.re)
+	case *ReCap:
+		return canOnlyMatchAtBegining(v.re)
+	default:
+		return false
+	}
+}

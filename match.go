@@ -6,7 +6,13 @@ import (
 )
 
 func Match(re Regexp, s string) bool {
-	for i := 0; i < len(s); i++ {
+	if re.match(matchContext{nil, 0, 0, s}, 0, func(c matchContext, _ int) *matchContext { return &c }) != nil {
+		return true
+	}
+	if canOnlyMatchAtBegining(re) {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
 		if re.match(matchContext{nil, 0, i, s}, i, func(c matchContext, _ int) *matchContext { return &c }) != nil {
 			return true
 		}
