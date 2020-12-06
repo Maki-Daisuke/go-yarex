@@ -3,43 +3,48 @@ package reaot
 import (
 	"strings"
 	"unicode/utf8"
+	"unsafe"
 )
 
 func Match(re Regexp, s string) bool {
-	if re.match(matchContext{nil, 0, 0, s}, 0, func(c matchContext, _ int) *matchContext { return &c }) != nil {
+	c := matchContext{nil, 0, 0, s}
+	if re.match(uintptr(unsafe.Pointer(&c)), 0, func(c uintptr, _ int) *matchContext { return (*matchContext)(unsafe.Pointer(c)) }) != nil {
 		return true
 	}
 	if canOnlyMatchAtBegining(re) {
 		return false
 	}
 	for i := 1; i < len(s); i++ {
-		if re.match(matchContext{nil, 0, i, s}, i, func(c matchContext, _ int) *matchContext { return &c }) != nil {
+		c.pos = i
+		if re.match(uintptr(unsafe.Pointer(&c)), i, func(c uintptr, _ int) *matchContext { return (*matchContext)(unsafe.Pointer(c)) }) != nil {
 			return true
 		}
 	}
 	return false
 }
 
-func (re ReLit) match(c matchContext, p int, k Continuation) *matchContext {
+func (re ReLit) match(c uintptr, p int, k Continuation) *matchContext {
+	str := (*matchContext)(unsafe.Pointer(c)).str
 	lit := string(re)
-	if !strings.HasPrefix(c.str[p:], lit) {
+	if !strings.HasPrefix(str[p:], lit) {
 		return nil
 	}
 	return k(c, p+len(lit))
 }
 
-func (re ReNotNewline) match(c matchContext, p int, k Continuation) *matchContext {
-	if !(p < len(c.str)) || c.str[0] == '\n' {
+func (re ReNotNewline) match(c uintptr, p int, k Continuation) *matchContext {
+	str := (*matchContext)(unsafe.Pointer(c)).str
+	if !(p < len(str)) || str[0] == '\n' {
 		return nil
 	}
 	return k(c, p+1)
 }
 
-func (r *ReSeq) match(c matchContext, p int, k Continuation) *matchContext {
+func (r *ReSeq) match(c uintptr, p int, k Continuation) *matchContext {
 	seq := r.seq
 	var loop func(int) Continuation
-	loop = func(i int) func(c matchContext, p int) *matchContext {
-		return func(c matchContext, p int) *matchContext {
+	loop = func(i int) func(c uintptr, p int) *matchContext {
+		return func(c uintptr, p int) *matchContext {
 			if i < len(seq) {
 				return seq[i].match(c, p, loop(i+1))
 			}
@@ -49,7 +54,7 @@ func (r *ReSeq) match(c matchContext, p int, k Continuation) *matchContext {
 	return loop(0)(c, p)
 }
 
-func (r *ReAlt) match(c matchContext, p int, k Continuation) *matchContext {
+func (r *ReAlt) match(c uintptr, p int, k Continuation) *matchContext {
 	for _, re := range r.opts {
 		if c1 := re.match(c, p, k); c1 != nil {
 			return c1
@@ -58,7 +63,8 @@ func (r *ReAlt) match(c matchContext, p int, k Continuation) *matchContext {
 	return nil
 }
 
-func (r *ReRepeat) match(c matchContext, p int, k Continuation) *matchContext {
+func (r *ReRepeat) match(c uintptr, p int, k Continuation) *matchContext {
+	str := (*matchContext)(unsafe.Pointer(c)).str
 	switch re := r.re.(type) {
 	case ReLit:
 		s := string(re)
@@ -69,12 +75,12 @@ func (r *ReRepeat) match(c matchContext, p int, k Continuation) *matchContext {
 		p1 := p
 		i := 0
 		if r.max < 0 {
-			for strings.HasPrefix(c.str[p1:], s) {
+			for strings.HasPrefix(str[p1:], s) {
 				i++
 				p1 += width
 			}
 		} else {
-			for i < r.max && strings.HasPrefix(c.str[p1:], s) {
+			for i < r.max && strings.HasPrefix(str[p1:], s) {
 				i++
 				p1 += width
 			}
@@ -94,8 +100,8 @@ func (r *ReRepeat) match(c matchContext, p int, k Continuation) *matchContext {
 		p1 := p
 		i := 0
 		if r.max < 0 {
-			for p1 < len(c.str) {
-				r, size := utf8.DecodeRuneInString(c.str[p1:])
+			for p1 < len(str) {
+				r, size := utf8.DecodeRuneInString(str[p1:])
 				if cc.Contains(r) {
 					p1 += size
 					i++
@@ -105,8 +111,8 @@ func (r *ReRepeat) match(c matchContext, p int, k Continuation) *matchContext {
 				}
 			}
 		} else {
-			for i < r.max && p1 < len(c.str) {
-				r, size := utf8.DecodeRuneInString(c.str[p1:])
+			for i < r.max && p1 < len(str) {
+				r, size := utf8.DecodeRuneInString(str[p1:])
 				if cc.Contains(r) {
 					p1 += size
 					i++
@@ -127,7 +133,7 @@ func (r *ReRepeat) match(c matchContext, p int, k Continuation) *matchContext {
 		prev := -1 // initial value must be a number which never equal to any position (i.e. positive integer)
 		var loop func(count int) Continuation
 		loop = func(count int) Continuation {
-			return func(c matchContext, p int) *matchContext {
+			return func(c uintptr, p int) *matchContext {
 				if prev == p { // Matched zero-length assertion. So, move ahead the next pattern.
 					return k(c, p)
 				}
@@ -149,39 +155,46 @@ func (r *ReRepeat) match(c matchContext, p int, k Continuation) *matchContext {
 	}
 }
 
-func (r *ReCap) match(c matchContext, p int, k Continuation) *matchContext {
-	return r.re.match(c.with(r.index, p), p, func(c matchContext, p1 int) *matchContext {
-		return k((&c).with(r.index, p1), p1)
+func (r *ReCap) match(c uintptr, p int, k Continuation) *matchContext {
+	ctx := (*matchContext)(unsafe.Pointer(c))
+	ctx = ctx.with(r.index, p)
+	return r.re.match(uintptr(unsafe.Pointer(ctx)), p, func(c uintptr, p1 int) *matchContext {
+		ctx := (*matchContext)(unsafe.Pointer(c))
+		ctx = ctx.with(r.index, p1)
+		return k(uintptr(unsafe.Pointer(ctx)), p1)
 	})
 }
 
-func (r ReBackRef) match(c matchContext, p int, k Continuation) *matchContext {
-	cap, ok := (&c).GetCaptured(uint(r))
+func (r ReBackRef) match(c uintptr, p int, k Continuation) *matchContext {
+	ctx := (*matchContext)(unsafe.Pointer(c))
+	cap, ok := (ctx).GetCaptured(uint(r))
 	if !ok {
 		return nil
 	}
 	return ReLit(cap).match(c, p, k)
 }
 
-func (re ReAssertBegin) match(c matchContext, p int, k Continuation) *matchContext {
+func (re ReAssertBegin) match(c uintptr, p int, k Continuation) *matchContext {
 	if p != 0 {
 		return nil
 	}
 	return k(c, p)
 }
 
-func (re ReAssertEnd) match(c matchContext, p int, k Continuation) *matchContext {
-	if p != len(c.str) {
+func (re ReAssertEnd) match(c uintptr, p int, k Continuation) *matchContext {
+	str := (*matchContext)(unsafe.Pointer(c)).str
+	if p != len(str) {
 		return nil
 	}
 	return k(c, p)
 }
 
-func (re ReCharClass) match(c matchContext, p int, k Continuation) *matchContext {
-	if len(c.str) < p+1 {
+func (re ReCharClass) match(c uintptr, p int, k Continuation) *matchContext {
+	str := (*matchContext)(unsafe.Pointer(c)).str
+	if len(str) < p+1 {
 		return nil
 	}
-	r, size := utf8.DecodeRuneInString(c.str[p:])
+	r, size := utf8.DecodeRuneInString(str[p:])
 	if !re.Contains(r) {
 		return nil
 	}

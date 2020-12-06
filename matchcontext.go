@@ -22,8 +22,8 @@ type matchContext struct {
 	str    string
 }
 
-func (c *matchContext) with(i uint, p int) matchContext {
-	return matchContext{c, i, p, c.str}
+func (c *matchContext) with(i uint, p int) *matchContext {
+	return &matchContext{c, i, p, c.str}
 }
 
 // GetOffset returns (-1, -1) when it cannot find specified index.

@@ -1,9 +1,11 @@
 package reaot
 
-type Continuation = func(matchContext, int) *matchContext
+// Here, we use uintpointer to pass *matchContext
+// to avoid from allocating the parameter in heap
+type Continuation = func(uintptr, int) *matchContext
 
 type Regexp interface {
 	//Compile()
 	String() string
-	match(matchContext, int, Continuation) *matchContext
+	match(uintptr, int, Continuation) *matchContext
 }
