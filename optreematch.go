@@ -6,7 +6,7 @@ import (
 )
 
 func MatchOpTree(op OpTree, s string) bool {
-	if op.match(&matchContext{nil, 0, 0, s}, 0) != nil {
+	if op.match(&opMatchContext{nil, s, 0, 0, 0, 0}, 0) != nil {
 		return true
 	}
 	if _, ok := op.(*OpAssertBegin); ok {
@@ -14,18 +14,18 @@ func MatchOpTree(op OpTree, s string) bool {
 	}
 	minReq := op.minimumReq()
 	for i := 1; minReq <= len(s)-i; i++ {
-		if op.match(&matchContext{nil, 0, i, s}, i) != nil {
+		if op.match(&opMatchContext{nil, s, 0, i, 0, 0}, i) != nil {
 			return true
 		}
 	}
 	return false
 }
 
-func (_ OpSuccess) match(c *matchContext, p int) *matchContext {
+func (_ OpSuccess) match(c *opMatchContext, p int) *opMatchContext {
 	return c
 }
 
-func (op *OpStr) match(c *matchContext, p int) *matchContext {
+func (op *OpStr) match(c *opMatchContext, p int) *opMatchContext {
 	str := c.str
 	if len(str)-p < op.minReq {
 		return nil
@@ -38,14 +38,25 @@ func (op *OpStr) match(c *matchContext, p int) *matchContext {
 	return op.follower.match(c, p+len(op.str))
 }
 
-func (op *OpAlt) match(c *matchContext, p int) *matchContext {
+func (op *OpAlt) match(c *opMatchContext, p int) *opMatchContext {
 	if r := op.follower.match(c, p); r != nil {
 		return r
 	}
 	return op.alt.match(c, p)
 }
 
-func (op *OpClass) match(c *matchContext, p int) *matchContext {
+func (op *OpRepeat) match(c *opMatchContext, p int) *opMatchContext {
+	prev := c.findRepeatStart(op.index)
+	if prev == p { // This means zero-width matching occurs.
+		return op.alt.match(c, p) // So, terminate repeating.
+	}
+	if r := op.follower.match(c.withRep(op.index, p), p); r != nil {
+		return r
+	}
+	return op.alt.match(c, p)
+}
+
+func (op *OpClass) match(c *opMatchContext, p int) *opMatchContext {
 	str := c.str
 	if len(str)-p < op.minReq {
 		return nil
@@ -60,7 +71,7 @@ func (op *OpClass) match(c *matchContext, p int) *matchContext {
 	return op.follower.match(c, p+size)
 }
 
-func (op *OpNotNewLine) match(c *matchContext, p int) *matchContext {
+func (op *OpNotNewLine) match(c *opMatchContext, p int) *opMatchContext {
 	str := c.str
 	if len(str)-p < op.minReq {
 		return nil
@@ -75,15 +86,15 @@ func (op *OpNotNewLine) match(c *matchContext, p int) *matchContext {
 	return op.follower.match(c, p+size)
 }
 
-func (op *OpCaptureStart) match(c *matchContext, p int) *matchContext {
-	return op.follower.match(c.with(op.index, p), p)
+func (op *OpCaptureStart) match(c *opMatchContext, p int) *opMatchContext {
+	return op.follower.match(c.withCap(op.index, p), p)
 }
 
-func (op *OpCaptureEnd) match(c *matchContext, p int) *matchContext {
-	return op.follower.match(c.with(op.index, p), p)
+func (op *OpCaptureEnd) match(c *opMatchContext, p int) *opMatchContext {
+	return op.follower.match(c.withCap(op.index, p), p)
 }
 
-func (op *OpBackRef) match(c *matchContext, p int) *matchContext {
+func (op *OpBackRef) match(c *opMatchContext, p int) *opMatchContext {
 	s, ok := c.GetCaptured(op.index)
 	if !ok || !strings.HasPrefix(c.str, s) {
 		return nil
@@ -91,14 +102,14 @@ func (op *OpBackRef) match(c *matchContext, p int) *matchContext {
 	return op.follower.match(c, p+len(s))
 }
 
-func (op *OpAssertBegin) match(c *matchContext, p int) *matchContext {
+func (op *OpAssertBegin) match(c *opMatchContext, p int) *opMatchContext {
 	if p != 0 {
 		return nil
 	}
 	return op.follower.match(c, p)
 }
 
-func (op *OpAssertEnd) match(c *matchContext, p int) *matchContext {
+func (op *OpAssertEnd) match(c *opMatchContext, p int) *opMatchContext {
 	if p != len(c.str) {
 		return nil
 	}

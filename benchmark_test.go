@@ -9,6 +9,7 @@ import (
 var sipPattern = `^["]{0,1}([^"]*)["]{0,1}[ ]*<(sip|tel|sips):(([^@]*)@){0,1}([^>^:]*|\[[a-fA-F0-9:]*\]):{0,1}([0-9]*){0,1}>(;.*){0,1}$`
 var sipReRe, _ = parse(sipPattern)
 var sipReOpt = optimize(sipReRe)
+var sipReOp = opCompile(sipReOpt)
 var sipReStd = regexp.MustCompile(sipPattern)
 var testStrings = []string{"\"display_name\"<sip:0312341234@10.0.0.1:5060>;user=phone;hogehoge",
 	"<sip:0312341234@10.0.0.1>",
@@ -37,6 +38,14 @@ func BenchmarkSipPattern_Optimized(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, s := range testStrings {
 			Match(sipReOpt, s)
+		}
+	}
+}
+
+func BenchmarkSipPattern_Optree(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		for _, s := range testStrings {
+			MatchOpTree(sipReOp, s)
 		}
 	}
 }

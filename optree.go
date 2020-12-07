@@ -2,7 +2,7 @@ package reaot
 
 type OpTree interface {
 	minimumReq() int
-	match(*matchContext, int) *matchContext
+	match(*opMatchContext, int) *opMatchContext
 }
 
 type OpBase struct {
@@ -28,6 +28,12 @@ type OpStr struct {
 type OpAlt struct {
 	OpBase
 	alt OpTree
+}
+
+type OpRepeat struct {
+	OpBase
+	alt   OpTree
+	index uint
 }
 
 type OpClass struct {

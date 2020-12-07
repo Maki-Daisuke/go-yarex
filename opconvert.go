@@ -15,10 +15,14 @@ func newOpAlt(left, right OpTree) *OpAlt {
 }
 
 func opCompile(re Regexp) OpTree {
-	return opCompileAux(re, OpSuccess{})
+	return (&opCompiler{}).compile(re, OpSuccess{})
 }
 
-func opCompileAux(re Regexp, follower OpTree) OpTree {
+type opCompiler struct {
+	repeatCount uint
+}
+
+func (oc *opCompiler) compile(re Regexp, follower OpTree) OpTree {
 	switch r := re.(type) {
 	case ReLit:
 		str := string(r)
@@ -30,9 +34,9 @@ func opCompileAux(re Regexp, follower OpTree) OpTree {
 			str: str,
 		}
 	case *ReSeq:
-		return opCompileSeq(r.seq, follower)
+		return oc.compileSeq(r.seq, follower)
 	case *ReAlt:
-		return opCompileAlt(r.opts, follower)
+		return oc.compileAlt(r.opts, follower)
 	case ReNotNewline:
 		return &OpNotNewLine{
 			OpBase: OpBase{
@@ -41,9 +45,9 @@ func opCompileAux(re Regexp, follower OpTree) OpTree {
 			},
 		}
 	case *ReRepeat:
-		return opCompileRepeat(r.re, r.min, r.max, follower)
+		return oc.compileRepeat(r.re, r.min, r.max, follower)
 	case *ReCap:
-		return opCompileCapture(r.re, r.index, follower)
+		return oc.compileCapture(r.re, r.index, follower)
 	case ReBackRef:
 		return &OpBackRef{
 			OpBase: OpBase{
@@ -75,48 +79,54 @@ func opCompileAux(re Regexp, follower OpTree) OpTree {
 			cls: (CharClass)(r),
 		}
 	}
-	panic("TODO")
+	panic("EXECUTION SHOULD NOT REACH HERE")
 }
 
-func opCompileSeq(seq []Regexp, follower OpTree) OpTree {
+func (oc *opCompiler) compileSeq(seq []Regexp, follower OpTree) OpTree {
 	if len(seq) == 0 {
 		return follower
 	}
-	follower = opCompileSeq(seq[1:], follower)
-	return opCompileAux(seq[0], follower)
+	follower = oc.compileSeq(seq[1:], follower)
+	return oc.compile(seq[0], follower)
 }
 
-func opCompileAlt(opts []Regexp, follower OpTree) OpTree {
+func (oc *opCompiler) compileAlt(opts []Regexp, follower OpTree) OpTree {
 	if len(opts) == 0 {
 		panic("THIS SHOULD NOT HAPPEN")
 	}
-	left := opCompileAux(opts[0], follower)
+	left := oc.compile(opts[0], follower)
 	if len(opts) == 1 {
 		return left
 	}
-	right := opCompileAlt(opts[1:], follower)
+	right := oc.compileAlt(opts[1:], follower)
 	return newOpAlt(left, right)
 }
 
-func opCompileRepeat(re Regexp, min, max int, follower OpTree) OpTree {
+func (oc *opCompiler) compileRepeat(re Regexp, min, max int, follower OpTree) OpTree {
 	if min > 0 {
-		follower = opCompileRepeat(re, min-1, max-1, follower)
-		return opCompileAux(re, follower)
-	}
-	if max < 0 { // This means repeat infinitely
-		self := newOpAlt(follower, follower)
-		self.follower = opCompileAux(re, self) // self-reference makes infinite loop
-		return self
+		return oc.compile(re, oc.compileRepeat(re, min-1, max-1, follower))
 	}
 	if max > 0 {
-		left := opCompileAux(re, opCompileRepeat(re, 0, max-1, follower))
+		left := oc.compile(re, oc.compileRepeat(re, 0, max-1, follower))
 		return newOpAlt(left, follower)
+	}
+	if max < 0 { // This means repeat infinitely
+		oc.repeatCount++
+		self := &OpRepeat{
+			OpBase: OpBase{
+				minReq: follower.minimumReq(),
+			},
+			index: oc.repeatCount,
+			alt:   follower,
+		}
+		self.follower = oc.compile(re, self) // self-reference makes infinite loop
+		return self
 	}
 	// If you are here, that means min==0 && max==0
 	return follower
 }
 
-func opCompileCapture(re Regexp, index uint, follower OpTree) OpTree {
+func (oc *opCompiler) compileCapture(re Regexp, index uint, follower OpTree) OpTree {
 	follower = &OpCaptureEnd{
 		OpBase: OpBase{
 			minReq:   follower.minimumReq(),
@@ -124,7 +134,7 @@ func opCompileCapture(re Regexp, index uint, follower OpTree) OpTree {
 		},
 		index: index,
 	}
-	follower = opCompileAux(re, follower)
+	follower = oc.compile(re, follower)
 	return &OpCaptureStart{
 		OpBase: OpBase{
 			minReq:   follower.minimumReq(),
