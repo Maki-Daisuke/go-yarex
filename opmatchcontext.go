@@ -22,13 +22,13 @@ type opMatchContext struct {
 	pos    int
 }
 
-func (c *opMatchContext) with(k string, p int) *opMatchContext {
-	new := new(opMatchContext)
-	*new = *c
-	new.parent = c
-	new.key = k
-	new.pos = p
-	return new
+func (c *opMatchContext) with(k string, p int) opMatchContext {
+	return opMatchContext{
+		parent: c,
+		str:    c.str,
+		key:    k,
+		pos:    p,
+	}
 }
 
 func (c *opMatchContext) GetCaptured(k string) (string, bool) {

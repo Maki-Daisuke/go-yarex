@@ -25,7 +25,8 @@ func MatchOpTree(op OpTree, s string) bool {
 }
 
 func (_ OpSuccess) match(c uintptr, p int) *opMatchContext {
-	return (*opMatchContext)(unsafe.Pointer(c)).with("c0", p)
+	ctx := (*opMatchContext)(unsafe.Pointer(c)).with("c0", p)
+	return &ctx
 }
 
 func (op *OpStr) match(c uintptr, p int) *opMatchContext {
@@ -56,7 +57,7 @@ func (op *OpRepeat) match(c uintptr, p int) *opMatchContext {
 		return op.alt.match(c, p) // So, terminate repeating.
 	}
 	ctx2 := ctx.with(op.key, p)
-	if r := op.follower.match(uintptr(unsafe.Pointer(ctx2)), p); r != nil {
+	if r := op.follower.match(uintptr(unsafe.Pointer(&ctx2)), p); r != nil {
 		return r
 	}
 	return op.alt.match(c, p)
@@ -95,15 +96,13 @@ func (op *OpNotNewLine) match(c uintptr, p int) *opMatchContext {
 }
 
 func (op *OpCaptureStart) match(c uintptr, p int) *opMatchContext {
-	ctx := (*opMatchContext)(unsafe.Pointer(c))
-	ctx = ctx.with(op.key, p)
-	return op.follower.match(uintptr(unsafe.Pointer(ctx)), p)
+	ctx := (*opMatchContext)(unsafe.Pointer(c)).with(op.key, p)
+	return op.follower.match(uintptr(unsafe.Pointer(&ctx)), p)
 }
 
 func (op *OpCaptureEnd) match(c uintptr, p int) *opMatchContext {
-	ctx := (*opMatchContext)(unsafe.Pointer(c))
-	ctx = ctx.with(op.key, p)
-	return op.follower.match(uintptr(unsafe.Pointer(ctx)), p)
+	ctx := (*opMatchContext)(unsafe.Pointer(c)).with(op.key, p)
+	return op.follower.match(uintptr(unsafe.Pointer(&ctx)), p)
 }
 
 func (op *OpBackRef) match(c uintptr, p int) *opMatchContext {
