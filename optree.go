@@ -2,7 +2,7 @@ package reaot
 
 type OpTree interface {
 	minimumReq() int
-	match(*opMatchContext, int) *opMatchContext
+	match(uintptr, int) *opMatchContext // Here, we use uintptr to pass *opMatchContext to avpid heap-allocation
 }
 
 type OpBase struct {

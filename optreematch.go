@@ -3,10 +3,12 @@ package reaot
 import (
 	"strings"
 	"unicode/utf8"
+	"unsafe"
 )
 
 func MatchOpTree(op OpTree, s string) bool {
-	if op.match(&opMatchContext{nil, s, "c0", 0}, 0) != nil {
+	ctx := &opMatchContext{nil, s, "c0", 0}
+	if op.match(uintptr(unsafe.Pointer(ctx)), 0) != nil {
 		return true
 	}
 	if _, ok := op.(*OpAssertBegin); ok {
@@ -14,19 +16,21 @@ func MatchOpTree(op OpTree, s string) bool {
 	}
 	minReq := op.minimumReq()
 	for i := 1; minReq <= len(s)-i; i++ {
-		if op.match(&opMatchContext{nil, s, "c0", i}, i) != nil {
+		ctx = &opMatchContext{nil, s, "c0", i}
+		if op.match(uintptr(unsafe.Pointer(ctx)), i) != nil {
 			return true
 		}
 	}
 	return false
 }
 
-func (_ OpSuccess) match(c *opMatchContext, p int) *opMatchContext {
-	return c.with("c0", p)
+func (_ OpSuccess) match(c uintptr, p int) *opMatchContext {
+	return (*opMatchContext)(unsafe.Pointer(c)).with("c0", p)
 }
 
-func (op *OpStr) match(c *opMatchContext, p int) *opMatchContext {
-	str := c.str
+func (op *OpStr) match(c uintptr, p int) *opMatchContext {
+	ctx := (*opMatchContext)(unsafe.Pointer(c))
+	str := ctx.str
 	if len(str)-p < op.minReq {
 		return nil
 	}
@@ -38,26 +42,29 @@ func (op *OpStr) match(c *opMatchContext, p int) *opMatchContext {
 	return op.follower.match(c, p+len(op.str))
 }
 
-func (op *OpAlt) match(c *opMatchContext, p int) *opMatchContext {
+func (op *OpAlt) match(c uintptr, p int) *opMatchContext {
 	if r := op.follower.match(c, p); r != nil {
 		return r
 	}
 	return op.alt.match(c, p)
 }
 
-func (op *OpRepeat) match(c *opMatchContext, p int) *opMatchContext {
-	prev := c.findVal(op.key)
+func (op *OpRepeat) match(c uintptr, p int) *opMatchContext {
+	ctx := (*opMatchContext)(unsafe.Pointer(c))
+	prev := ctx.findVal(op.key)
 	if prev == p { // This means zero-width matching occurs.
 		return op.alt.match(c, p) // So, terminate repeating.
 	}
-	if r := op.follower.match(c.with(op.key, p), p); r != nil {
+	ctx2 := ctx.with(op.key, p)
+	if r := op.follower.match(uintptr(unsafe.Pointer(ctx2)), p); r != nil {
 		return r
 	}
 	return op.alt.match(c, p)
 }
 
-func (op *OpClass) match(c *opMatchContext, p int) *opMatchContext {
-	str := c.str
+func (op *OpClass) match(c uintptr, p int) *opMatchContext {
+	ctx := (*opMatchContext)(unsafe.Pointer(c))
+	str := ctx.str
 	if len(str)-p < op.minReq {
 		return nil
 	}
@@ -71,8 +78,9 @@ func (op *OpClass) match(c *opMatchContext, p int) *opMatchContext {
 	return op.follower.match(c, p+size)
 }
 
-func (op *OpNotNewLine) match(c *opMatchContext, p int) *opMatchContext {
-	str := c.str
+func (op *OpNotNewLine) match(c uintptr, p int) *opMatchContext {
+	ctx := (*opMatchContext)(unsafe.Pointer(c))
+	str := ctx.str
 	if len(str)-p < op.minReq {
 		return nil
 	}
@@ -86,31 +94,37 @@ func (op *OpNotNewLine) match(c *opMatchContext, p int) *opMatchContext {
 	return op.follower.match(c, p+size)
 }
 
-func (op *OpCaptureStart) match(c *opMatchContext, p int) *opMatchContext {
-	return op.follower.match(c.with(op.key, p), p)
+func (op *OpCaptureStart) match(c uintptr, p int) *opMatchContext {
+	ctx := (*opMatchContext)(unsafe.Pointer(c))
+	ctx = ctx.with(op.key, p)
+	return op.follower.match(uintptr(unsafe.Pointer(ctx)), p)
 }
 
-func (op *OpCaptureEnd) match(c *opMatchContext, p int) *opMatchContext {
-	return op.follower.match(c.with(op.key, p), p)
+func (op *OpCaptureEnd) match(c uintptr, p int) *opMatchContext {
+	ctx := (*opMatchContext)(unsafe.Pointer(c))
+	ctx = ctx.with(op.key, p)
+	return op.follower.match(uintptr(unsafe.Pointer(ctx)), p)
 }
 
-func (op *OpBackRef) match(c *opMatchContext, p int) *opMatchContext {
-	s, ok := c.GetCaptured(op.key)
-	if !ok || !strings.HasPrefix(c.str[p:], s) {
+func (op *OpBackRef) match(c uintptr, p int) *opMatchContext {
+	ctx := (*opMatchContext)(unsafe.Pointer(c))
+	s, ok := ctx.GetCaptured(op.key)
+	if !ok || !strings.HasPrefix(ctx.str[p:], s) {
 		return nil
 	}
 	return op.follower.match(c, p+len(s))
 }
 
-func (op *OpAssertBegin) match(c *opMatchContext, p int) *opMatchContext {
+func (op *OpAssertBegin) match(c uintptr, p int) *opMatchContext {
 	if p != 0 {
 		return nil
 	}
 	return op.follower.match(c, p)
 }
 
-func (op *OpAssertEnd) match(c *opMatchContext, p int) *opMatchContext {
-	if p != len(c.str) {
+func (op *OpAssertEnd) match(c uintptr, p int) *opMatchContext {
+	ctx := (*opMatchContext)(unsafe.Pointer(c))
+	if p != len(ctx.str) {
 		return nil
 	}
 	return op.follower.match(c, p)
