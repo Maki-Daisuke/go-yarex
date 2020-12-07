@@ -113,6 +113,16 @@ func (oc *opCompiler) compileRepeat(re Regexp, min, max int, follower OpTree) Op
 		return newOpAlt(left, follower)
 	}
 	if max < 0 { // This means repeat infinitely
+		if !canMatchZeroWidth(re) { // If re does not match zero-width string, we can optimize by skipping zero-width check
+			self := &OpAlt{
+				OpBase: OpBase{
+					minReq: follower.minimumReq(),
+				},
+				alt: follower,
+			}
+			self.follower = oc.compile(re, self) // self-reference makes infinite loop
+			return self
+		}
 		oc.repeatCount++
 		self := &OpRepeat{
 			OpBase: OpBase{
@@ -126,6 +136,36 @@ func (oc *opCompiler) compileRepeat(re Regexp, min, max int, follower OpTree) Op
 	}
 	// If you are here, that means min==0 && max==0
 	return follower
+}
+
+func canMatchZeroWidth(re Regexp) bool {
+	switch r := re.(type) {
+	case ReBackRef, ReAssertBegin, ReAssertEnd:
+		return true
+	case ReNotNewline, ReCharClass:
+		return false
+	case ReLit:
+		return len(string(r)) == 0
+	case *ReSeq:
+		for _, s := range r.seq {
+			if !canMatchZeroWidth(s) {
+				return false
+			}
+		}
+		return true
+	case *ReAlt:
+		for _, o := range r.opts {
+			if canMatchZeroWidth(o) {
+				return true
+			}
+		}
+		return false
+	case *ReRepeat:
+		return r.min == 0 || canMatchZeroWidth(r.re)
+	case *ReCap:
+		return canMatchZeroWidth(r.re)
+	}
+	panic("EXECUTION SHOULD NOT REACH HERE")
 }
 
 func (oc *opCompiler) compileCapture(re Regexp, index uint, follower OpTree) OpTree {
