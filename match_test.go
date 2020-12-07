@@ -185,12 +185,21 @@ func TestMatchBackRef(t *testing.T) {
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
+	re = optimize(re)
+	reOp := opCompile(re)
 	for _, test := range tests {
 		if Match(re, test.str) != test.result {
 			if test.result {
-				t.Errorf("%v should match against %q, but didn't", re, test.str)
+				t.Errorf("(Interp) %v should match against %q, but didn't", re, test.str)
 			} else {
-				t.Errorf("%v shouldn't match against %q, but did", re, test.str)
+				t.Errorf("(Interp) %v shouldn't match against %q, but did", re, test.str)
+			}
+		}
+		if MatchOpTree(reOp, test.str) != test.result {
+			if test.result {
+				t.Errorf("(OpTree) %v should match against %q, but didn't", re, test.str)
+			} else {
+				t.Errorf("(OpTree) %v shouldn't match against %q, but did", re, test.str)
 			}
 		}
 	}

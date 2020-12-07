@@ -6,7 +6,7 @@ import (
 )
 
 func MatchOpTree(op OpTree, s string) bool {
-	if op.match(&opMatchContext{nil, s, 0, 0, 0, 0}, 0) != nil {
+	if op.match(&opMatchContext{nil, s, "c0", 0}, 0) != nil {
 		return true
 	}
 	if _, ok := op.(*OpAssertBegin); ok {
@@ -14,7 +14,7 @@ func MatchOpTree(op OpTree, s string) bool {
 	}
 	minReq := op.minimumReq()
 	for i := 1; minReq <= len(s)-i; i++ {
-		if op.match(&opMatchContext{nil, s, 0, i, 0, 0}, i) != nil {
+		if op.match(&opMatchContext{nil, s, "c0", i}, i) != nil {
 			return true
 		}
 	}
@@ -22,7 +22,7 @@ func MatchOpTree(op OpTree, s string) bool {
 }
 
 func (_ OpSuccess) match(c *opMatchContext, p int) *opMatchContext {
-	return c
+	return c.with("c0", p)
 }
 
 func (op *OpStr) match(c *opMatchContext, p int) *opMatchContext {
@@ -46,11 +46,11 @@ func (op *OpAlt) match(c *opMatchContext, p int) *opMatchContext {
 }
 
 func (op *OpRepeat) match(c *opMatchContext, p int) *opMatchContext {
-	prev := c.findRepeatStart(op.index)
+	prev := c.findVal(op.key)
 	if prev == p { // This means zero-width matching occurs.
 		return op.alt.match(c, p) // So, terminate repeating.
 	}
-	if r := op.follower.match(c.withRep(op.index, p), p); r != nil {
+	if r := op.follower.match(c.with(op.key, p), p); r != nil {
 		return r
 	}
 	return op.alt.match(c, p)
@@ -87,16 +87,16 @@ func (op *OpNotNewLine) match(c *opMatchContext, p int) *opMatchContext {
 }
 
 func (op *OpCaptureStart) match(c *opMatchContext, p int) *opMatchContext {
-	return op.follower.match(c.withCap(op.index, p), p)
+	return op.follower.match(c.with(op.key, p), p)
 }
 
 func (op *OpCaptureEnd) match(c *opMatchContext, p int) *opMatchContext {
-	return op.follower.match(c.withCap(op.index, p), p)
+	return op.follower.match(c.with(op.key, p), p)
 }
 
 func (op *OpBackRef) match(c *opMatchContext, p int) *opMatchContext {
-	s, ok := c.GetCaptured(op.index)
-	if !ok || !strings.HasPrefix(c.str, s) {
+	s, ok := c.GetCaptured(op.key)
+	if !ok || !strings.HasPrefix(c.str[p:], s) {
 		return nil
 	}
 	return op.follower.match(c, p+len(s))

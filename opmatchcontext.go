@@ -1,46 +1,44 @@
 package reaot
 
 // opMatchContext forms linked-list using reference to its parent node.
-// It holds an index number of a capturing group and a position in a string
-// being matched.
-// The two positions with the identical index represents the end and the start
-// position of the string captured by the index.
+// It holds a key and an integer value, which are used to represent both capturing groups
+// and start position of repeat for checking zero-width matcing.
+// A pair integers with the identical "cN" key represents the end and the start
+// position of the string captured by the key.
 // For example, when the following data eixsts:
 //
-//   +-----------+    +-----------+    +-----------+    +-------------+
-//   | parent: +-+--->| parent: +-+--->| parent: +-+--->| parent: nil |
-//   | capIdx: 0 |    | capIdx: 1 |    | capIdx: 1 |    | capIdx:   0 |
-//   | capPos: 9 |    | capPos: 5 |    | capPos: 2 |    | capPos:   1 |
-//   +-----------+    +-----------+    +-----------+    +-------------+
+//   +-----------+    +-----------+    +-----------+    +-----------+    +-------------+
+//   | parent: +-+--->| parent: +-+--->| parent: +-+--->| parent: +-+--->| parent: nil |
+//   | key: "c0" |    | key: "c1" |    | key: "r1" |    | key: "c1" |    | key:   "c0" |
+//   | pos: 9    |    | pos: 5    |    | pos: 2    |    | pos: 2    |    | pos:   1    |
+//   +-----------+    +-----------+    +-----------+    +-----------+    +-------------+
 //
 // This means, captured string by the first "()" is indexed as str[2:5] and
 // whole matched string is indexed as str[1:9].
 type opMatchContext struct {
 	parent *opMatchContext
 	str    string
-	capIdx uint // Capture index
-	capPos int  // Capture position
-	repIdx uint // Repeat index for zero-width-check index
-	repPos int  // Repeat position for repIndex
+	key    string
+	pos    int
 }
 
-func (c *opMatchContext) withCap(i uint, p int) *opMatchContext {
+func (c *opMatchContext) with(k string, p int) *opMatchContext {
 	new := new(opMatchContext)
 	*new = *c
 	new.parent = c
-	new.capIdx = i
-	new.capPos = p
+	new.key = k
+	new.pos = p
 	return new
 }
 
-func (c *opMatchContext) GetCaptured(i uint) (string, bool) {
+func (c *opMatchContext) GetCaptured(k string) (string, bool) {
 	var start, end int
 	for ; ; c = c.parent {
 		if c == nil {
 			return "", false
 		}
-		if c.capIdx == i {
-			end = c.capPos
+		if c.key == k {
+			end = c.pos
 			break
 		}
 	}
@@ -50,29 +48,20 @@ func (c *opMatchContext) GetCaptured(i uint) (string, bool) {
 			// This should not happen.
 			panic("Undetermined capture")
 		}
-		if c.capIdx == i {
-			start = c.capPos
+		if c.key == k {
+			start = c.pos
 			return c.str[start:end], true
 		}
 	}
 }
 
-func (c *opMatchContext) withRep(i uint, p int) *opMatchContext {
-	new := new(opMatchContext)
-	*new = *c
-	new.parent = c
-	new.repIdx = i
-	new.repPos = p
-	return new
-}
-
-func (c *opMatchContext) findRepeatStart(i uint) int {
+func (c *opMatchContext) findVal(k string) int {
 	for ; ; c = c.parent {
 		if c == nil {
 			return -1
 		}
-		if c.repIdx == i {
-			return c.repPos
+		if c.key == k {
+			return c.pos
 		}
 	}
 }
