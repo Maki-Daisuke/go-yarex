@@ -33,7 +33,7 @@ func (oc *opCompiler) compile(re Regexp, follower OpTree) OpTree {
 				minReq:   follower.minimumReq() + len(str),
 				follower: follower,
 			},
-			str: str,
+			str: []rune(str),
 		}
 	case *ReSeq:
 		return oc.compileSeq(r.seq, follower)

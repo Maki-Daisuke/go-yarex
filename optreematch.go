@@ -1,14 +1,13 @@
 package reaot
 
 import (
-	"strings"
-	"unicode/utf8"
 	"unsafe"
 )
 
 func MatchOpTree(op OpTree, s string) bool {
+	rs := []rune(s)
 	ome := opMatchEngine{func(_ *opMatchContext) {}}
-	ctx := &opMatchContext{nil, s, "c0", 0}
+	ctx := &opMatchContext{nil, rs, "c0", 0}
 	if ome.exec(op, uintptr(unsafe.Pointer(ctx)), 0) != nil {
 		return true
 	}
@@ -17,7 +16,7 @@ func MatchOpTree(op OpTree, s string) bool {
 	}
 	minReq := op.minimumReq()
 	for i := 1; minReq <= len(s)-i; i++ {
-		ctx = &opMatchContext{nil, s, "c0", i}
+		ctx = &opMatchContext{nil, rs, "c0", i}
 		if ome.exec(op, uintptr(unsafe.Pointer(ctx)), i) != nil {
 			return true
 		}
@@ -69,28 +68,20 @@ func (ome opMatchEngine) exec(next OpTree, c uintptr, p int) *opMatchContext {
 			if len(str)-p < op.minReq {
 				return nil
 			}
-			r, size := utf8.DecodeRuneInString(str[p:])
-			if size == 0 || r == utf8.RuneError {
-				return nil
-			}
-			if !op.cls.Contains(r) {
+			if !op.cls.Contains(str[p]) {
 				return nil
 			}
 			next = op.follower
-			p += size
+			p++
 		case *OpNotNewLine:
 			if len(str)-p < op.minReq {
 				return nil
 			}
-			r, size := utf8.DecodeRuneInString(str[p:])
-			if size == 0 || r == utf8.RuneError {
-				return nil
-			}
-			if r == '\n' {
+			if str[p] == '\n' {
 				return nil
 			}
 			next = op.follower
-			p += size
+			p++
 		case *OpCaptureStart:
 			ctx2 := ctx.with(op.key, p)
 			return ome.exec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p)
@@ -98,9 +89,17 @@ func (ome opMatchEngine) exec(next OpTree, c uintptr, p int) *opMatchContext {
 			ctx2 := ctx.with(op.key, p)
 			return ome.exec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p)
 		case *OpBackRef:
-			s, ok := ctx.GetCaptured(op.key)
-			if !ok || !strings.HasPrefix(str[p:], s) {
+			s := ctx.GetCaptured(op.key)
+			if s == nil { // When the corresponding capture group didn't match anything, this backref fails according to Perl's regex.
 				return nil
+			}
+			if len(str)-p < len(s) {
+				return nil
+			}
+			for i, r := range s {
+				if str[p+i] != r {
+					return nil
+				}
 			}
 			next = op.follower
 			p += len(s)

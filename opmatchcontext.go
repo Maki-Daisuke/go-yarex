@@ -17,7 +17,7 @@ package reaot
 // whole matched string is indexed as str[1:9].
 type opMatchContext struct {
 	parent *opMatchContext
-	str    string
+	str    []rune
 	key    string
 	pos    int
 }
@@ -31,11 +31,11 @@ func (c *opMatchContext) with(k string, p int) opMatchContext {
 	}
 }
 
-func (c *opMatchContext) GetCaptured(k string) (string, bool) {
+func (c *opMatchContext) GetCaptured(k string) []rune {
 	var start, end int
 	for ; ; c = c.parent {
 		if c == nil {
-			return "", false
+			return nil
 		}
 		if c.key == k {
 			end = c.pos
@@ -50,7 +50,7 @@ func (c *opMatchContext) GetCaptured(k string) (string, bool) {
 		}
 		if c.key == k {
 			start = c.pos
-			return c.str[start:end], true
+			return c.str[start:end]
 		}
 	}
 }

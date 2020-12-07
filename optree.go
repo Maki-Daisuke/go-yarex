@@ -21,7 +21,7 @@ func (_ OpSuccess) minimumReq() int {
 
 type OpStr struct {
 	OpBase
-	str string
+	str []rune
 }
 
 type OpAlt struct {
