@@ -8,6 +8,7 @@ import (
 func testMatchStrings(t *testing.T, restr string, tests []string) {
 	re, err := parse(restr)
 	re = optimize(re)
+	op := opCompile(re)
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
@@ -16,9 +17,16 @@ func testMatchStrings(t *testing.T, restr string, tests []string) {
 		match := goRe.MatchString(str)
 		if Match(re, str) != match {
 			if match {
-				t.Errorf("%v should match against %q, but didn't", re, str)
+				t.Errorf("(Interp) %v should match against %q, but didn't", re, str)
 			} else {
-				t.Errorf("%v shouldn't match against %q, but did", re, str)
+				t.Errorf("(Interp) %v shouldn't match against %q, but did", re, str)
+			}
+		}
+		if MatchOpTree(op, str) != match {
+			if match {
+				t.Errorf("(OpTree) %v should match against %q, but didn't", re, str)
+			} else {
+				t.Errorf("(OpTree) %v shouldn't match against %q, but did", re, str)
 			}
 		}
 	}
