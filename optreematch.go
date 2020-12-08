@@ -8,7 +8,7 @@ import (
 
 func MatchOpTree(op OpTree, s string) bool {
 	ome := opMatchEngine{func(_ *opMatchContext) {}}
-	ctx := &opMatchContext{nil, s, "c0", 0}
+	ctx := &opMatchContext{nil, s, contextKey{'c', 0}, 0}
 	if ome.exec(op, uintptr(unsafe.Pointer(ctx)), 0) != nil {
 		return true
 	}
@@ -17,7 +17,7 @@ func MatchOpTree(op OpTree, s string) bool {
 	}
 	minReq := op.minimumReq()
 	for i := 1; minReq <= len(s)-i; i++ {
-		ctx = &opMatchContext{nil, s, "c0", i}
+		ctx = &opMatchContext{nil, s, contextKey{'c', 0}, i}
 		if ome.exec(op, uintptr(unsafe.Pointer(ctx)), i) != nil {
 			return true
 		}
@@ -35,7 +35,7 @@ func (ome opMatchEngine) exec(next OpTree, c uintptr, p int) *opMatchContext {
 	for {
 		switch op := next.(type) {
 		case OpSuccess:
-			c := ctx.with("c0", p)
+			c := ctx.with(contextKey{'c', 0}, p)
 			ome.onSuccess(&c)
 			return &c
 		case *OpStr:

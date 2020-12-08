@@ -1,7 +1,5 @@
 package reaot
 
-import "fmt"
-
 func newOpAlt(left, right OpTree) *OpAlt {
 	min := left.minimumReq()
 	if right.minimumReq() < min {
@@ -56,7 +54,7 @@ func (oc *opCompiler) compile(re Regexp, follower OpTree) OpTree {
 				minReq:   follower.minimumReq(),
 				follower: follower,
 			},
-			key: fmt.Sprintf("c%d", uint(r)),
+			key: contextKey{'c', uint(r)},
 		}
 	case ReAssertBegin:
 		return &OpAssertBegin{
@@ -128,7 +126,7 @@ func (oc *opCompiler) compileRepeat(re Regexp, min, max int, follower OpTree) Op
 			OpBase: OpBase{
 				minReq: follower.minimumReq(),
 			},
-			key: fmt.Sprintf("r%d", oc.repeatCount),
+			key: contextKey{'r', oc.repeatCount},
 			alt: follower,
 		}
 		self.follower = oc.compile(re, self) // self-reference makes infinite loop
@@ -174,7 +172,7 @@ func (oc *opCompiler) compileCapture(re Regexp, index uint, follower OpTree) OpT
 			minReq:   follower.minimumReq(),
 			follower: follower,
 		},
-		key: fmt.Sprintf("c%d", index),
+		key: contextKey{'c', index},
 	}
 	follower = oc.compile(re, follower)
 	return &OpCaptureStart{
@@ -182,6 +180,6 @@ func (oc *opCompiler) compileCapture(re Regexp, index uint, follower OpTree) OpT
 			minReq:   follower.minimumReq(),
 			follower: follower,
 		},
-		key: fmt.Sprintf("c%d", index),
+		key: contextKey{'c', index},
 	}
 }
