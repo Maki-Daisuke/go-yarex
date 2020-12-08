@@ -282,6 +282,7 @@ LOOP:
 	} else {
 		out = compositeClass(ccs)
 	}
+	out = toAsciiMaskClass(out) // this returns the input as-is if impossible to convert to asciiMaskClass
 	if isNegate {
 		out = NegateCharClass(out)
 	}

@@ -12,6 +12,74 @@ type CharClass interface {
 	String() string
 }
 
+type asciiMaskClass struct {
+	Hi uint64
+	Lo uint64
+}
+
+func (c asciiMaskClass) Contains(r rune) bool {
+	if r > 127 {
+		return false
+	}
+	if r < 64 {
+		return (c.Lo & (1 << r)) != 0
+	}
+	return (c.Hi & (1 << (r - 64))) != 0
+}
+
+func (_ asciiMaskClass) String() string {
+	// tentative implementation
+	return ":AsciiMask:"
+}
+
+type negAsciiMaskClass struct {
+	asciiMaskClass
+}
+
+func (c negAsciiMaskClass) Contains(r rune) bool {
+	if r > 127 {
+		return true
+	}
+	if r < 64 {
+		return (c.Lo & (1 << r)) == 0
+	}
+	return (c.Hi & (1 << (r - 64))) == 0
+}
+
+func (_ negAsciiMaskClass) String() string {
+	// tentative implementation
+	return ":NegAsciiMask:"
+}
+
+// toAsciiMaskClass returns input as-is if impossible to convert to asciiMaskClass
+func toAsciiMaskClass(c CharClass) CharClass {
+	switch rtc := c.(type) {
+	case *rangeTableClass:
+		rt := (*unicode.RangeTable)(rtc)
+		if len(rt.R32) != 0 {
+			return c
+		}
+		if rt.R16[len(rt.R16)-1].Hi > 127 {
+			return c
+		}
+		var mask asciiMaskClass
+		for _, r := range rt.R16 {
+			for i := r.Lo; i <= r.Hi; i += r.Stride {
+				if i > 127 {
+					panic(fmt.Errorf("(THIS SHOULD NOT HAPPEN) i (=%d) exceeds ASCII range", i))
+				}
+				if i < 64 {
+					mask.Lo |= 1 << i
+				} else {
+					mask.Hi |= 1 << (i - 64)
+				}
+			}
+		}
+		return mask
+	}
+	return c
+}
+
 type rangeTableClass unicode.RangeTable
 
 func (rt *rangeTableClass) Contains(r rune) bool {
@@ -71,11 +139,14 @@ func (cc compositeClass) String() string {
 }
 
 func NegateCharClass(c CharClass) CharClass {
-	if rt, ok := c.(*rangeTableClass); ok {
-		neg := negateRangeTable((*unicode.RangeTable)(rt))
+	switch x := c.(type) {
+	case *rangeTableClass:
+		neg := negateRangeTable((*unicode.RangeTable)(x))
 		if neg != nil {
 			return (*rangeTableClass)(neg)
 		}
+	case asciiMaskClass:
+		return negAsciiMaskClass{x}
 	}
 	return negClass{c}
 }
