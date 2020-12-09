@@ -6,7 +6,7 @@ import (
 	"unsafe"
 )
 
-func Match(re Regexp, s string) bool {
+func Match(re Ast, s string) bool {
 	c := matchContext{nil, 0, 0, s}
 	if re.match(uintptr(unsafe.Pointer(&c)), 0, func(c uintptr, _ int) *matchContext { return (*matchContext)(unsafe.Pointer(c)) }) != nil {
 		return true
@@ -23,7 +23,7 @@ func Match(re Regexp, s string) bool {
 	return false
 }
 
-func (re ReLit) match(c uintptr, p int, k Continuation) *matchContext {
+func (re AstLit) match(c uintptr, p int, k Continuation) *matchContext {
 	str := (*matchContext)(unsafe.Pointer(c)).str
 	lit := string(re)
 	if !strings.HasPrefix(str[p:], lit) {
@@ -32,7 +32,7 @@ func (re ReLit) match(c uintptr, p int, k Continuation) *matchContext {
 	return k(c, p+len(lit))
 }
 
-func (re ReNotNewline) match(c uintptr, p int, k Continuation) *matchContext {
+func (re AstNotNewline) match(c uintptr, p int, k Continuation) *matchContext {
 	str := (*matchContext)(unsafe.Pointer(c)).str
 	if !(p < len(str)) || str[0] == '\n' {
 		return nil
@@ -40,7 +40,7 @@ func (re ReNotNewline) match(c uintptr, p int, k Continuation) *matchContext {
 	return k(c, p+1)
 }
 
-func (r *ReSeq) match(c uintptr, p int, k Continuation) *matchContext {
+func (r *AstSeq) match(c uintptr, p int, k Continuation) *matchContext {
 	seq := r.seq
 	var loop func(int) Continuation
 	loop = func(i int) func(c uintptr, p int) *matchContext {
@@ -54,7 +54,7 @@ func (r *ReSeq) match(c uintptr, p int, k Continuation) *matchContext {
 	return loop(0)(c, p)
 }
 
-func (r *ReAlt) match(c uintptr, p int, k Continuation) *matchContext {
+func (r *AstAlt) match(c uintptr, p int, k Continuation) *matchContext {
 	for _, re := range r.opts {
 		if c1 := re.match(c, p, k); c1 != nil {
 			return c1
@@ -63,10 +63,10 @@ func (r *ReAlt) match(c uintptr, p int, k Continuation) *matchContext {
 	return nil
 }
 
-func (r *ReRepeat) match(c uintptr, p int, k Continuation) *matchContext {
+func (r *AstRepeat) match(c uintptr, p int, k Continuation) *matchContext {
 	str := (*matchContext)(unsafe.Pointer(c)).str
 	switch re := r.re.(type) {
-	case ReLit:
+	case AstLit:
 		s := string(re)
 		width := len(s)
 		if width == 0 {
@@ -93,7 +93,7 @@ func (r *ReRepeat) match(c uintptr, p int, k Continuation) *matchContext {
 			i--
 		}
 		return nil
-	case ReCharClass:
+	case AstCharClass:
 		cc := re.CharClass
 		stack := make([]int, 0, 64)
 		stack = append(stack, p)
@@ -155,7 +155,7 @@ func (r *ReRepeat) match(c uintptr, p int, k Continuation) *matchContext {
 	}
 }
 
-func (r *ReCap) match(c uintptr, p int, k Continuation) *matchContext {
+func (r *AstCap) match(c uintptr, p int, k Continuation) *matchContext {
 	ctx := (*matchContext)(unsafe.Pointer(c))
 	ctx = ctx.with(r.index, p)
 	return r.re.match(uintptr(unsafe.Pointer(ctx)), p, func(c uintptr, p1 int) *matchContext {
@@ -165,23 +165,23 @@ func (r *ReCap) match(c uintptr, p int, k Continuation) *matchContext {
 	})
 }
 
-func (r ReBackRef) match(c uintptr, p int, k Continuation) *matchContext {
+func (r AstBackRef) match(c uintptr, p int, k Continuation) *matchContext {
 	ctx := (*matchContext)(unsafe.Pointer(c))
 	cap, ok := (ctx).GetCaptured(uint(r))
 	if !ok {
 		return nil
 	}
-	return ReLit(cap).match(c, p, k)
+	return AstLit(cap).match(c, p, k)
 }
 
-func (re ReAssertBegin) match(c uintptr, p int, k Continuation) *matchContext {
+func (re AstAssertBegin) match(c uintptr, p int, k Continuation) *matchContext {
 	if p != 0 {
 		return nil
 	}
 	return k(c, p)
 }
 
-func (re ReAssertEnd) match(c uintptr, p int, k Continuation) *matchContext {
+func (re AstAssertEnd) match(c uintptr, p int, k Continuation) *matchContext {
 	str := (*matchContext)(unsafe.Pointer(c)).str
 	if p != len(str) {
 		return nil
@@ -189,7 +189,7 @@ func (re ReAssertEnd) match(c uintptr, p int, k Continuation) *matchContext {
 	return k(c, p)
 }
 
-func (re ReCharClass) match(c uintptr, p int, k Continuation) *matchContext {
+func (re AstCharClass) match(c uintptr, p int, k Continuation) *matchContext {
 	str := (*matchContext)(unsafe.Pointer(c)).str
 	if len(str) < p+1 {
 		return nil

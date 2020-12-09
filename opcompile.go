@@ -14,7 +14,7 @@ func newOpAlt(left, right OpTree) *OpAlt {
 	}
 }
 
-func opCompile(re Regexp) OpTree {
+func opCompile(re Ast) OpTree {
 	return (&opCompiler{}).compile(re, OpSuccess{})
 }
 
@@ -22,9 +22,9 @@ type opCompiler struct {
 	repeatCount uint
 }
 
-func (oc *opCompiler) compile(re Regexp, follower OpTree) OpTree {
+func (oc *opCompiler) compile(re Ast, follower OpTree) OpTree {
 	switch r := re.(type) {
-	case ReLit:
+	case AstLit:
 		str := string(r)
 		return &OpStr{
 			OpBase: OpBase{
@@ -33,22 +33,22 @@ func (oc *opCompiler) compile(re Regexp, follower OpTree) OpTree {
 			},
 			str: str,
 		}
-	case *ReSeq:
+	case *AstSeq:
 		return oc.compileSeq(r.seq, follower)
-	case *ReAlt:
+	case *AstAlt:
 		return oc.compileAlt(r.opts, follower)
-	case ReNotNewline:
+	case AstNotNewline:
 		return &OpNotNewLine{
 			OpBase: OpBase{
 				minReq:   follower.minimumReq() + 1,
 				follower: follower,
 			},
 		}
-	case *ReRepeat:
+	case *AstRepeat:
 		return oc.compileRepeat(r.re, r.min, r.max, follower)
-	case *ReCap:
+	case *AstCap:
 		return oc.compileCapture(r.re, r.index, follower)
-	case ReBackRef:
+	case AstBackRef:
 		return &OpBackRef{
 			OpBase: OpBase{
 				minReq:   follower.minimumReq(),
@@ -56,21 +56,21 @@ func (oc *opCompiler) compile(re Regexp, follower OpTree) OpTree {
 			},
 			key: contextKey{'c', uint(r)},
 		}
-	case ReAssertBegin:
+	case AstAssertBegin:
 		return &OpAssertBegin{
 			OpBase: OpBase{
 				minReq:   follower.minimumReq(),
 				follower: follower,
 			},
 		}
-	case ReAssertEnd:
+	case AstAssertEnd:
 		return &OpAssertEnd{
 			OpBase: OpBase{
 				minReq:   follower.minimumReq(),
 				follower: follower,
 			},
 		}
-	case ReCharClass:
+	case AstCharClass:
 		return &OpClass{
 			OpBase: OpBase{
 				minReq:   follower.minimumReq() + 1,
@@ -82,7 +82,7 @@ func (oc *opCompiler) compile(re Regexp, follower OpTree) OpTree {
 	panic("EXECUTION SHOULD NOT REACH HERE")
 }
 
-func (oc *opCompiler) compileSeq(seq []Regexp, follower OpTree) OpTree {
+func (oc *opCompiler) compileSeq(seq []Ast, follower OpTree) OpTree {
 	if len(seq) == 0 {
 		return follower
 	}
@@ -90,7 +90,7 @@ func (oc *opCompiler) compileSeq(seq []Regexp, follower OpTree) OpTree {
 	return oc.compile(seq[0], follower)
 }
 
-func (oc *opCompiler) compileAlt(opts []Regexp, follower OpTree) OpTree {
+func (oc *opCompiler) compileAlt(opts []Ast, follower OpTree) OpTree {
 	if len(opts) == 0 {
 		panic("THIS SHOULD NOT HAPPEN")
 	}
@@ -102,7 +102,7 @@ func (oc *opCompiler) compileAlt(opts []Regexp, follower OpTree) OpTree {
 	return newOpAlt(left, right)
 }
 
-func (oc *opCompiler) compileRepeat(re Regexp, min, max int, follower OpTree) OpTree {
+func (oc *opCompiler) compileRepeat(re Ast, min, max int, follower OpTree) OpTree {
 	if min > 0 {
 		return oc.compile(re, oc.compileRepeat(re, min-1, max-1, follower))
 	}
@@ -136,37 +136,37 @@ func (oc *opCompiler) compileRepeat(re Regexp, min, max int, follower OpTree) Op
 	return follower
 }
 
-func canMatchZeroWidth(re Regexp) bool {
+func canMatchZeroWidth(re Ast) bool {
 	switch r := re.(type) {
-	case ReBackRef, ReAssertBegin, ReAssertEnd:
+	case AstBackRef, AstAssertBegin, AstAssertEnd:
 		return true
-	case ReNotNewline, ReCharClass:
+	case AstNotNewline, AstCharClass:
 		return false
-	case ReLit:
+	case AstLit:
 		return len(string(r)) == 0
-	case *ReSeq:
+	case *AstSeq:
 		for _, s := range r.seq {
 			if !canMatchZeroWidth(s) {
 				return false
 			}
 		}
 		return true
-	case *ReAlt:
+	case *AstAlt:
 		for _, o := range r.opts {
 			if canMatchZeroWidth(o) {
 				return true
 			}
 		}
 		return false
-	case *ReRepeat:
+	case *AstRepeat:
 		return r.min == 0 || canMatchZeroWidth(r.re)
-	case *ReCap:
+	case *AstCap:
 		return canMatchZeroWidth(r.re)
 	}
 	panic("EXECUTION SHOULD NOT REACH HERE")
 }
 
-func (oc *opCompiler) compileCapture(re Regexp, index uint, follower OpTree) OpTree {
+func (oc *opCompiler) compileCapture(re Ast, index uint, follower OpTree) OpTree {
 	follower = &OpCaptureEnd{
 		OpBase: OpBase{
 			minReq:   follower.minimumReq(),

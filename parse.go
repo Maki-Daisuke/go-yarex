@@ -6,7 +6,7 @@ import (
 	"unicode"
 )
 
-func parse(s string) (re Regexp, err error) {
+func parse(s string) (re Ast, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			err = e.(error)
@@ -25,7 +25,7 @@ type parser struct {
 	closeCaptures uint
 }
 
-func (*parser) parseLit(str []rune) (Regexp, []rune) {
+func (*parser) parseLit(str []rune) (Ast, []rune) {
 	if len(str) == 0 {
 		panic(fmt.Errorf("Literal is expected, but reached end-of-string unexpectedly"))
 	}
@@ -33,23 +33,23 @@ func (*parser) parseLit(str []rune) (Regexp, []rune) {
 	case '$', '^', '*', '(', ')', '+', '[', ']', '{', '}', '|', '\\', '.', '?':
 		panic(fmt.Errorf("Literal is expected, but cannot find: %q", string(str)))
 	}
-	return ReLit(str[0:1]), str[1:]
+	return AstLit(str[0:1]), str[1:]
 }
 
-func (p *parser) parseSeq(str []rune) (Regexp, []rune) {
-	seq := make([]Regexp, 0, 8)
+func (p *parser) parseSeq(str []rune) (Ast, []rune) {
+	seq := make([]Ast, 0, 8)
 LOOP:
 	for len(str) > 0 {
-		var re Regexp
+		var re Ast
 		switch str[0] {
 		case '^':
-			re = ReAssertBegin{}
+			re = AstAssertBegin{}
 			str = str[1:]
 		case '$':
-			re = ReAssertEnd{}
+			re = AstAssertEnd{}
 			str = str[1:]
 		case '.':
-			re = ReNotNewline{}
+			re = AstNotNewline{}
 			str = str[1:]
 		case '\\':
 			re, str = p.parseEscape(str)
@@ -68,18 +68,18 @@ LOOP:
 	if len(seq) == 1 {
 		return seq[0], str
 	} else {
-		return &ReSeq{seq}, str
+		return &AstSeq{seq}, str
 	}
 }
 
-func (p *parser) parseAlt(str []rune) (Regexp, []rune) {
+func (p *parser) parseAlt(str []rune) (Ast, []rune) {
 	re, str := p.parseSeq(str)
-	opts := []Regexp{re}
+	opts := []Ast{re}
 LOOP:
 	for len(str) > 0 {
 		switch str[0] {
 		case '|':
-			var re Regexp
+			var re Ast
 			re, str = p.parseAlt(str[1:])
 			opts = append(opts, re)
 		case ')':
@@ -91,11 +91,11 @@ LOOP:
 	if len(opts) == 1 {
 		return opts[0], str
 	} else {
-		return &ReAlt{opts}, str
+		return &AstAlt{opts}, str
 	}
 }
 
-func (p *parser) parseGroup(str []rune) (Regexp, []rune) {
+func (p *parser) parseGroup(str []rune) (Ast, []rune) {
 	if str[0] != '(' {
 		panic(fmt.Errorf("'(' is expected, but cannot find: %q", string(str)))
 	}
@@ -115,7 +115,7 @@ func (p *parser) parseGroup(str []rune) (Regexp, []rune) {
 	return re, remain[1:]
 }
 
-func (p *parser) parseCapture(str []rune) (Regexp, []rune) {
+func (p *parser) parseCapture(str []rune) (Ast, []rune) {
 	p.openCaptures++
 	index := p.openCaptures
 	re, remain := p.parseAlt(str)
@@ -123,20 +123,20 @@ func (p *parser) parseCapture(str []rune) (Regexp, []rune) {
 		panic(fmt.Errorf("Unmatched '(' : %q", string(str)))
 	}
 	p.closeCaptures++
-	return &ReCap{index, re}, remain[1:]
+	return &AstCap{index, re}, remain[1:]
 }
 
-func (p *parser) parseQuantifier(str []rune, re Regexp) (Regexp, []rune) {
+func (p *parser) parseQuantifier(str []rune, re Ast) (Ast, []rune) {
 	if len(str) == 0 {
 		return re, str
 	}
 	switch str[0] {
 	case '*':
-		return &ReRepeat{re, 0, -1}, str[1:]
+		return &AstRepeat{re, 0, -1}, str[1:]
 	case '+':
-		return &ReRepeat{re, 1, -1}, str[1:]
+		return &AstRepeat{re, 1, -1}, str[1:]
 	case '?':
-		return &ReRepeat{re, 0, 1}, str[1:]
+		return &AstRepeat{re, 0, 1}, str[1:]
 	case '{':
 		start, remain := p.parseInt(str[1:])
 		if remain == nil {
@@ -144,7 +144,7 @@ func (p *parser) parseQuantifier(str []rune, re Regexp) (Regexp, []rune) {
 		}
 		switch remain[0] {
 		case '}':
-			return &ReRepeat{re, start, start}, remain[1:]
+			return &AstRepeat{re, start, start}, remain[1:]
 		case ',':
 			end, remain := p.parseInt(remain[1:])
 			if remain == nil {
@@ -153,7 +153,7 @@ func (p *parser) parseQuantifier(str []rune, re Regexp) (Regexp, []rune) {
 			if remain[0] != '}' {
 				panic(fmt.Errorf("Unmatched '{' : %q", string(str)))
 			}
-			return &ReRepeat{re, start, end}, remain[1:]
+			return &AstRepeat{re, start, end}, remain[1:]
 		default:
 			panic(fmt.Errorf("Unmatched '{' : %q", string(str)))
 		}
@@ -179,11 +179,11 @@ func (p *parser) parseInt(str []rune) (int, []rune) {
 	return int(x), str[i:]
 }
 
-func (p *parser) parseEscape(str []rune) (Regexp, []rune) {
+func (p *parser) parseEscape(str []rune) (Ast, []rune) {
 	return p.parseEscapeAux(str, false)
 }
 
-func (p *parser) parseEscapeAux(str []rune, inClass bool) (Regexp, []rune) {
+func (p *parser) parseEscapeAux(str []rune, inClass bool) (Ast, []rune) {
 	if str[0] != '\\' {
 		panic(fmt.Errorf("'\\' is expected, but cannot find: %q", string(str)))
 	}
@@ -193,14 +193,14 @@ func (p *parser) parseEscapeAux(str []rune, inClass bool) (Regexp, []rune) {
 	switch str[1] {
 	case ' ', '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';',
 		'<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~':
-		return ReLit(str[1:2]), str[2:]
+		return AstLit(str[1:2]), str[2:]
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		if str[2] < '0' || '9' < str[2] {
 			if str[1] == '0' {
-				return ReLit([]rune{0}), str[2:]
+				return AstLit([]rune{0}), str[2:]
 			}
 			if !inClass {
-				return ReBackRef(str[1] - '0'), str[2:]
+				return AstBackRef(str[1] - '0'), str[2:]
 			}
 			panic(fmt.Errorf("invalid character %q in octal escape: %q", str[2], string(str)))
 		}
@@ -211,13 +211,13 @@ func (p *parser) parseEscapeAux(str []rune, inClass bool) (Regexp, []rune) {
 		if err != nil {
 			panic(fmt.Errorf("can't parse octal escape in %q: %w", string(str), err))
 		}
-		return ReLit([]rune{rune(oct)}), str[4:]
+		return AstLit([]rune{rune(oct)}), str[4:]
 	default:
 		panic(fmt.Errorf("Unknown escape sequence: %q", string(str)))
 	}
 }
 
-func (p *parser) parseClass(str []rune) (Regexp, []rune) {
+func (p *parser) parseClass(str []rune) (Ast, []rune) {
 	if str[0] != '[' {
 		panic(fmt.Errorf("'[' is expected, but cannot find: %q", string(str)))
 	}
@@ -245,9 +245,9 @@ LOOP:
 		}
 		var from rune
 		if str[0] == '\\' {
-			var re Regexp
+			var re Ast
 			re, str = p.parseEscapeAux(str, true)
-			from = ([]rune)(re.(ReLit))[0] // This must work at least now
+			from = ([]rune)(re.(AstLit))[0] // This must work at least now
 		} else {
 			from = str[0]
 			str = str[1:]
@@ -263,9 +263,9 @@ LOOP:
 			str = str[2:]
 			break LOOP
 		case '\\':
-			var re Regexp
+			var re Ast
 			re, str = p.parseEscapeAux(str[1:], true)
-			to := ([]rune)(re.(ReLit))[0] // This must work at least now
+			to := ([]rune)(re.(AstLit))[0] // This must work at least now
 			rangeTable = mergeRangeTable(rangeTable, rangeTableFromTo(from, to))
 			break
 		default:
@@ -286,5 +286,5 @@ LOOP:
 	if isNegate {
 		out = NegateCharClass(out)
 	}
-	return ReCharClass{out}, str
+	return AstCharClass{out}, str
 }

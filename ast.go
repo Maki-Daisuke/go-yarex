@@ -5,17 +5,27 @@ import (
 	"fmt"
 )
 
-type ReLit string
+// Here, we use uintpointer to pass *matchContext
+// to avoid from allocating the parameter in heap
+type Continuation = func(uintptr, int) *matchContext
 
-func (re ReLit) String() string {
+type Ast interface {
+	//Compile()
+	String() string
+	match(uintptr, int, Continuation) *matchContext // This implements an interpreter implementation.
+}
+
+type AstLit string
+
+func (re AstLit) String() string {
 	return string(re)
 }
 
-type ReSeq struct {
-	seq []Regexp
+type AstSeq struct {
+	seq []Ast
 }
 
-func (re *ReSeq) String() string {
+func (re *AstSeq) String() string {
 	b := bytes.NewBufferString("(?:")
 	for _, r := range re.seq {
 		fmt.Fprint(b, r.String())
@@ -24,11 +34,11 @@ func (re *ReSeq) String() string {
 	return b.String()
 }
 
-type ReAlt struct {
-	opts []Regexp
+type AstAlt struct {
+	opts []Ast
 }
 
-func (re *ReAlt) String() string {
+func (re *AstAlt) String() string {
 	b := bytes.NewBufferString("(?:")
 	fmt.Fprint(b, re.opts[0].String())
 	for _, r := range re.opts[1:] {
@@ -39,18 +49,18 @@ func (re *ReAlt) String() string {
 	return b.String()
 }
 
-type ReNotNewline struct{}
+type AstNotNewline struct{}
 
-func (re ReNotNewline) String() string {
+func (re AstNotNewline) String() string {
 	return "."
 }
 
-type ReRepeat struct {
-	re       Regexp
+type AstRepeat struct {
+	re       Ast
 	min, max int // -1 means unlimited
 }
 
-func (re *ReRepeat) String() string {
+func (re *AstRepeat) String() string {
 	if re.min == 0 && re.max == 1 {
 		return re.re.String() + "?"
 	}
@@ -69,37 +79,37 @@ func (re *ReRepeat) String() string {
 	return fmt.Sprintf("%s{%d,%d}", re.re.String(), re.min, re.max)
 }
 
-type ReCap struct {
+type AstCap struct {
 	index uint
-	re    Regexp
+	re    Ast
 }
 
-func (re *ReCap) String() string {
+func (re *AstCap) String() string {
 	return fmt.Sprintf("(%s)", re.re)
 }
 
-type ReBackRef uint
+type AstBackRef uint
 
-func (re ReBackRef) String() string {
+func (re AstBackRef) String() string {
 	return fmt.Sprintf("\\%d", uint(re))
 }
 
-type ReAssertBegin struct{}
+type AstAssertBegin struct{}
 
-func (re ReAssertBegin) String() string {
+func (re AstAssertBegin) String() string {
 	return "^"
 }
 
-type ReAssertEnd struct{}
+type AstAssertEnd struct{}
 
-func (re ReAssertEnd) String() string {
+func (re AstAssertEnd) String() string {
 	return "$"
 }
 
-type ReCharClass struct {
+type AstCharClass struct {
 	CharClass
 }
 
-func (re ReCharClass) String() string {
+func (re AstCharClass) String() string {
 	return "[" + re.CharClass.String() + "]"
 }
