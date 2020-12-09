@@ -91,7 +91,7 @@ func optimizeAstSingleCharacterClass(re Ast) Ast {
 		out.re = optimizeAstSingleCharacterClass(v.re)
 		return &out
 	case AstCharClass:
-		if rtc, ok := v.CharClass.(*rangeTableClass); ok {
+		if rtc, ok := v.CharClass.(*RangeTableClass); ok {
 			rt := (*unicode.RangeTable)(rtc)
 			if len(rt.R16) == 1 && len(rt.R32) == 0 && rt.R16[0].Lo == rt.R16[0].Hi {
 				return AstLit(string(rune(rt.R16[0].Lo)))

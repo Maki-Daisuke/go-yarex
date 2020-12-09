@@ -274,13 +274,13 @@ LOOP:
 		}
 	}
 	if rangeTable.R16 != nil || rangeTable.R32 != nil {
-		ccs = append(ccs, (*rangeTableClass)(rangeTable))
+		ccs = append(ccs, (*RangeTableClass)(rangeTable))
 	}
 	var out CharClass
 	if len(ccs) == 1 {
 		out = ccs[0]
 	} else {
-		out = compositeClass(ccs)
+		out = CompositeClass(ccs)
 	}
 	out = toAsciiMaskClass(out) // this returns the input as-is if impossible to convert to asciiMaskClass
 	if isNegate {

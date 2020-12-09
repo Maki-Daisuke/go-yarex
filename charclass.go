@@ -12,12 +12,12 @@ type CharClass interface {
 	String() string
 }
 
-type asciiMaskClass struct {
+type AsciiMaskClass struct {
 	Hi uint64
 	Lo uint64
 }
 
-func (c asciiMaskClass) Contains(r rune) bool {
+func (c AsciiMaskClass) Contains(r rune) bool {
 	if r > 127 {
 		return false
 	}
@@ -27,16 +27,16 @@ func (c asciiMaskClass) Contains(r rune) bool {
 	return (c.Hi & (1 << (r - 64))) != 0
 }
 
-func (_ asciiMaskClass) String() string {
+func (_ AsciiMaskClass) String() string {
 	// tentative implementation
 	return ":AsciiMask:"
 }
 
-type negAsciiMaskClass struct {
-	asciiMaskClass
+type CompAsciiMaskClass struct {
+	AsciiMaskClass
 }
 
-func (c negAsciiMaskClass) Contains(r rune) bool {
+func (c CompAsciiMaskClass) Contains(r rune) bool {
 	if r > 127 {
 		return true
 	}
@@ -46,7 +46,7 @@ func (c negAsciiMaskClass) Contains(r rune) bool {
 	return (c.Hi & (1 << (r - 64))) == 0
 }
 
-func (_ negAsciiMaskClass) String() string {
+func (_ CompAsciiMaskClass) String() string {
 	// tentative implementation
 	return ":NegAsciiMask:"
 }
@@ -54,7 +54,7 @@ func (_ negAsciiMaskClass) String() string {
 // toAsciiMaskClass returns input as-is if impossible to convert to asciiMaskClass
 func toAsciiMaskClass(c CharClass) CharClass {
 	switch rtc := c.(type) {
-	case *rangeTableClass:
+	case *RangeTableClass:
 		rt := (*unicode.RangeTable)(rtc)
 		if len(rt.R32) != 0 {
 			return c
@@ -62,7 +62,7 @@ func toAsciiMaskClass(c CharClass) CharClass {
 		if rt.R16[len(rt.R16)-1].Hi > 127 {
 			return c
 		}
-		var mask asciiMaskClass
+		var mask AsciiMaskClass
 		for _, r := range rt.R16 {
 			for i := r.Lo; i <= r.Hi; i += r.Stride {
 				if i > 127 {
@@ -80,13 +80,13 @@ func toAsciiMaskClass(c CharClass) CharClass {
 	return c
 }
 
-type rangeTableClass unicode.RangeTable
+type RangeTableClass unicode.RangeTable
 
-func (rt *rangeTableClass) Contains(r rune) bool {
+func (rt *RangeTableClass) Contains(r rune) bool {
 	return unicode.Is((*unicode.RangeTable)(rt), r)
 }
 
-func (rt *rangeTableClass) String() string {
+func (rt *RangeTableClass) String() string {
 	var buf strings.Builder
 	for _, r := range rt.R16 {
 		if r.Lo == r.Hi {
@@ -109,19 +109,19 @@ func (rt *rangeTableClass) String() string {
 	return buf.String()
 }
 
-type negClass struct{ CharClass }
+type CompClass struct{ CharClass }
 
-func (nc negClass) Contains(r rune) bool {
-	return !nc.CharClass.Contains(r)
+func (c CompClass) Contains(r rune) bool {
+	return !c.CharClass.Contains(r)
 }
 
-func (nc negClass) String() string {
+func (nc CompClass) String() string {
 	return "^" + nc.CharClass.String()
 }
 
-type compositeClass []CharClass
+type CompositeClass []CharClass
 
-func (cc compositeClass) Contains(r rune) bool {
+func (cc CompositeClass) Contains(r rune) bool {
 	for _, c := range ([]CharClass)(cc) {
 		if c.Contains(r) {
 			return true
@@ -130,7 +130,7 @@ func (cc compositeClass) Contains(r rune) bool {
 	return false
 }
 
-func (cc compositeClass) String() string {
+func (cc CompositeClass) String() string {
 	var buf strings.Builder
 	for _, c := range ([]CharClass)(cc) {
 		buf.WriteString(c.String())
@@ -140,15 +140,15 @@ func (cc compositeClass) String() string {
 
 func NegateCharClass(c CharClass) CharClass {
 	switch x := c.(type) {
-	case *rangeTableClass:
+	case *RangeTableClass:
 		neg := negateRangeTable((*unicode.RangeTable)(x))
 		if neg != nil {
-			return (*rangeTableClass)(neg)
+			return (*RangeTableClass)(neg)
 		}
-	case asciiMaskClass:
-		return negAsciiMaskClass{x}
+	case AsciiMaskClass:
+		return CompAsciiMaskClass{x}
 	}
-	return negClass{c}
+	return CompClass{c}
 }
 
 // negateRangeTable can only negate RageTables in which Stride = 1, and returns nil
@@ -195,7 +195,7 @@ func MergeCharClass(cs ...CharClass) CharClass {
 	acc := &unicode.RangeTable{[]unicode.Range16{}, []unicode.Range32{}, 1}
 	for _, c := range flattenCharClass(cs...) {
 		// Try to merge RangeTable and fallback to composite if merge fails.
-		if rc, ok := c.(*rangeTableClass); ok {
+		if rc, ok := c.(*RangeTableClass); ok {
 			merged := mergeRangeTable(acc, (*unicode.RangeTable)(rc))
 			if merged != nil {
 				acc = merged
@@ -205,19 +205,19 @@ func MergeCharClass(cs ...CharClass) CharClass {
 		out = append(out, c)
 	}
 	if len(acc.R16) > 0 || len(acc.R32) > 0 {
-		out = append(out, (*rangeTableClass)(acc))
+		out = append(out, (*RangeTableClass)(acc))
 	}
 	if len(out) == 1 {
 		return out[0]
 	}
-	return compositeClass(out)
+	return CompositeClass(out)
 }
 
 // flattenCharClass recursively flatten compositeClass into a list of CharClasses
 func flattenCharClass(cs ...CharClass) []CharClass {
 	out := []CharClass{}
 	for _, i := range cs {
-		if c, ok := i.(compositeClass); ok {
+		if c, ok := i.(CompositeClass); ok {
 			out = append(out, flattenCharClass(([]CharClass)(c)...)...)
 		} else {
 			out = append(out, i)
