@@ -2,20 +2,21 @@ package reaot
 
 import "unicode"
 
-func optimize(re Ast) Ast {
-	re = optimizeSingleCharacterClass(re)
-	re = optimizeUnwrapSingletonSeqAndAlt(re)
+func optimizeAst(re Ast) Ast {
+	re = optimizeAstSingleCharacterClass(re)
+	re = optimizeAstUnwrapSingletonSeqAndAlt(re)
 	return re
 }
 
-// Join adjacent literals and unwrap seq and alt containing a single re as much as possible
-func optimizeUnwrapSingletonSeqAndAlt(re Ast) Ast {
+// optimizeAstUnwrapSingletonSeqAndAlt joins adjacent literals, and unwrap seqs and alts
+// containing a single re as much as possible
+func optimizeAstUnwrapSingletonSeqAndAlt(re Ast) Ast {
 	switch v := re.(type) {
 	case *AstSeq:
 		out := make([]Ast, 0, len(v.seq))
 		var acc *string = nil
 		for _, r := range v.seq {
-			r = optimizeUnwrapSingletonSeqAndAlt(r)
+			r = optimizeAstUnwrapSingletonSeqAndAlt(r)
 			if lit, ok := r.(AstLit); ok {
 				if acc == nil {
 					s := string(lit)
@@ -44,7 +45,7 @@ func optimizeUnwrapSingletonSeqAndAlt(re Ast) Ast {
 	case *AstAlt:
 		out := make([]Ast, len(v.opts), len(v.opts))
 		for i, r := range v.opts {
-			out[i] = optimizeUnwrapSingletonSeqAndAlt(r)
+			out[i] = optimizeAstUnwrapSingletonSeqAndAlt(r)
 		}
 		switch len(out) {
 		case 0:
@@ -55,39 +56,39 @@ func optimizeUnwrapSingletonSeqAndAlt(re Ast) Ast {
 		return &AstAlt{out}
 	case *AstRepeat:
 		out := *v
-		out.re = optimizeUnwrapSingletonSeqAndAlt(v.re)
+		out.re = optimizeAstUnwrapSingletonSeqAndAlt(v.re)
 		return &out
 	case *AstCap:
 		out := *v
-		out.re = optimizeUnwrapSingletonSeqAndAlt(v.re)
+		out.re = optimizeAstUnwrapSingletonSeqAndAlt(v.re)
 		return &out
 	default:
 		return v
 	}
 }
 
-// optimizeSingleCharacterClass replaces ReCharClass containing a single codepoint with ReLit
-func optimizeSingleCharacterClass(re Ast) Ast {
+// optimizeAstSingleCharacterClass replaces ReCharClass containing a single codepoint with ReLit
+func optimizeAstSingleCharacterClass(re Ast) Ast {
 	switch v := re.(type) {
 	case *AstSeq:
 		out := make([]Ast, len(v.seq), len(v.seq))
 		for i, r := range v.seq {
-			out[i] = optimizeSingleCharacterClass(r)
+			out[i] = optimizeAstSingleCharacterClass(r)
 		}
 		return &AstSeq{out}
 	case *AstAlt:
 		out := make([]Ast, len(v.opts), len(v.opts))
 		for i, r := range v.opts {
-			out[i] = optimizeSingleCharacterClass(r)
+			out[i] = optimizeAstSingleCharacterClass(r)
 		}
 		return &AstAlt{out}
 	case *AstRepeat:
 		out := *v
-		out.re = optimizeSingleCharacterClass(v.re)
+		out.re = optimizeAstSingleCharacterClass(v.re)
 		return &out
 	case *AstCap:
 		out := *v
-		out.re = optimizeSingleCharacterClass(v.re)
+		out.re = optimizeAstSingleCharacterClass(v.re)
 		return &out
 	case AstCharClass:
 		if rtc, ok := v.CharClass.(*rangeTableClass); ok {

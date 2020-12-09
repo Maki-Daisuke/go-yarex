@@ -8,7 +8,7 @@ import (
 // This benchmark was barrowed from https://qiita.com/marnie_ms4/items/7014563083ca1d824905
 var sipPattern = `^["]{0,1}([^"]*)["]{0,1}[ ]*<(sip|tel|sips):(([^@]*)@){0,1}([^>^:]*|\[[a-fA-F0-9:]*\]):{0,1}([0-9]*){0,1}>(;.*){0,1}$`
 var sipReRe, _ = parse(sipPattern)
-var sipReOpt = optimize(sipReRe)
+var sipReOpt = optimizeAst(sipReRe)
 var sipReOp = opCompile(sipReOpt)
 var sipReStd = regexp.MustCompile(sipPattern)
 var testStrings = []string{"\"display_name\"<sip:0312341234@10.0.0.1:5060>;user=phone;hogehoge",

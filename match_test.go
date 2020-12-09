@@ -7,7 +7,7 @@ import (
 
 func testMatchStrings(t *testing.T, restr string, tests []string) {
 	re, err := parse(restr)
-	re = optimize(re)
+	re = optimizeAst(re)
 	op := opCompile(re)
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
@@ -185,7 +185,7 @@ func TestMatchBackRef(t *testing.T) {
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
-	re = optimize(re)
+	re = optimizeAst(re)
 	reOp := opCompile(re)
 	for _, test := range tests {
 		if Match(re, test.str) != test.result {
