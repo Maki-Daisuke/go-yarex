@@ -24,7 +24,7 @@ func MatchOpTree(op OpTree, s string) bool {
 type opStackFrame struct {
 	next OpTree
 	pos  int
-	key  string
+	key  contextKey
 	val  int
 }
 
@@ -64,7 +64,7 @@ func (ome *opMatchEngine) pop() (OpTree, int) {
 	panic("SHOULD NOT REACH HERE")
 }
 
-func (ome *opMatchEngine) findVal(k string) int {
+func (ome *opMatchEngine) findVal(k contextKey) int {
 	for i := ome.stacktop - 1; i >= 0; i-- {
 		if ome.stack[i].key == k {
 			return ome.stack[i].val
@@ -93,7 +93,7 @@ LOOP:
 			next = op.follower
 			p += len(op.str)
 		case *OpAlt:
-			ome.push(opStackFrame{op.alt, p, "", 0})
+			ome.push(opStackFrame{op.alt, p, contextKey{}, 0})
 			next = op.follower
 		case *OpRepeat:
 			prev := ome.findVal(op.key)

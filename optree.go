@@ -32,7 +32,7 @@ type OpAlt struct {
 type OpRepeat struct {
 	OpBase
 	alt OpTree
-	key string
+	key contextKey
 }
 
 type OpClass struct {
@@ -46,17 +46,17 @@ type OpNotNewLine struct {
 
 type OpCaptureStart struct {
 	OpBase
-	key string
+	key contextKey
 }
 
 type OpCaptureEnd struct { // actuallly, this is identical to OpCaptureStart
 	OpBase
-	key string
+	key contextKey
 }
 
 type OpBackRef struct {
 	OpBase
-	key string
+	key contextKey
 }
 
 type OpAssertBegin struct {

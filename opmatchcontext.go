@@ -15,14 +15,19 @@ package reaot
 //
 // This means, captured string by the first "()" is indexed as str[2:5] and
 // whole matched string is indexed as str[1:9].
+type contextKey struct {
+	kind  rune
+	index uint
+}
+
 type opMatchContext struct {
 	parent *opMatchContext
 	str    string
-	key    string
+	key    contextKey
 	pos    int
 }
 
-func (c *opMatchContext) with(k string, p int) opMatchContext {
+func (c *opMatchContext) with(k contextKey, p int) opMatchContext {
 	return opMatchContext{
 		parent: c,
 		str:    c.str,
@@ -31,7 +36,7 @@ func (c *opMatchContext) with(k string, p int) opMatchContext {
 	}
 }
 
-func (c *opMatchContext) GetCaptured(k string) (string, bool) {
+func (c *opMatchContext) GetCaptured(k contextKey) (string, bool) {
 	var start, end int
 	for ; ; c = c.parent {
 		if c == nil {
@@ -55,7 +60,7 @@ func (c *opMatchContext) GetCaptured(k string) (string, bool) {
 	}
 }
 
-func (c *opMatchContext) findVal(k string) int {
+func (c *opMatchContext) findVal(k contextKey) int {
 	for ; ; c = c.parent {
 		if c == nil {
 			return -1
