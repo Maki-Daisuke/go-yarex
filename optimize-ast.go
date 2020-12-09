@@ -1,9 +1,6 @@
 package reaot
 
-import "unicode"
-
 func optimizeAst(re Ast) Ast {
-	re = optimizeAstSingleCharacterClass(re)
 	re = optimizeAstUnwrapSingletonSeqAndAlt(re)
 	return re
 }
@@ -62,45 +59,6 @@ func optimizeAstUnwrapSingletonSeqAndAlt(re Ast) Ast {
 		out := *v
 		out.re = optimizeAstUnwrapSingletonSeqAndAlt(v.re)
 		return &out
-	default:
-		return v
-	}
-}
-
-// optimizeAstSingleCharacterClass replaces ReCharClass containing a single codepoint with ReLit
-func optimizeAstSingleCharacterClass(re Ast) Ast {
-	switch v := re.(type) {
-	case *AstSeq:
-		out := make([]Ast, len(v.seq), len(v.seq))
-		for i, r := range v.seq {
-			out[i] = optimizeAstSingleCharacterClass(r)
-		}
-		return &AstSeq{out}
-	case *AstAlt:
-		out := make([]Ast, len(v.opts), len(v.opts))
-		for i, r := range v.opts {
-			out[i] = optimizeAstSingleCharacterClass(r)
-		}
-		return &AstAlt{out}
-	case *AstRepeat:
-		out := *v
-		out.re = optimizeAstSingleCharacterClass(v.re)
-		return &out
-	case *AstCap:
-		out := *v
-		out.re = optimizeAstSingleCharacterClass(v.re)
-		return &out
-	case AstCharClass:
-		if rtc, ok := v.CharClass.(*RangeTableClass); ok {
-			rt := (*unicode.RangeTable)(rtc)
-			if len(rt.R16) == 1 && len(rt.R32) == 0 && rt.R16[0].Lo == rt.R16[0].Hi {
-				return AstLit(string(rune(rt.R16[0].Lo)))
-			}
-			if len(rt.R16) == 0 && len(rt.R32) == 1 && rt.R32[0].Lo == rt.R32[0].Hi {
-				return AstLit(string(rune(rt.R32[0].Lo)))
-			}
-		}
-		return v
 	default:
 		return v
 	}

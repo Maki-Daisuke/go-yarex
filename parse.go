@@ -282,6 +282,12 @@ LOOP:
 	} else {
 		out = CompositeClass(ccs)
 	}
+	// Return AstLit if it contains only a single character
+	if c, ok := out.(*RangeTableClass); ok && !isNegate {
+		if r, ok := c.HasOnlySingleChar(); ok {
+			return AstLit(string(r)), str
+		}
+	}
 	out = toAsciiMaskClass(out) // this returns the input as-is if impossible to convert to asciiMaskClass
 	if isNegate {
 		out = NegateCharClass(out)

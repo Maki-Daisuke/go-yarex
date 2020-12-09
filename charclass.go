@@ -86,6 +86,17 @@ func (rt *RangeTableClass) Contains(r rune) bool {
 	return unicode.Is((*unicode.RangeTable)(rt), r)
 }
 
+func (c *RangeTableClass) HasOnlySingleChar() (rune, bool) {
+	rt := (*unicode.RangeTable)(c)
+	if len(rt.R16) == 1 && len(rt.R32) == 0 && rt.R16[0].Lo == rt.R16[0].Hi {
+		return rune(rt.R16[0].Lo), true
+	}
+	if len(rt.R16) == 0 && len(rt.R32) == 1 && rt.R32[0].Lo == rt.R32[0].Hi {
+		return rune(rt.R32[0].Lo), true
+	}
+	return 0, false
+}
+
 func (rt *RangeTableClass) String() string {
 	var buf strings.Builder
 	for _, r := range rt.R16 {
