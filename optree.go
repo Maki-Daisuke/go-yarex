@@ -35,6 +35,12 @@ type OpRepeat struct {
 	key contextKey
 }
 
+type OpAltZeroWidthCheck struct {
+	OpBase
+	alt OpTree
+	key contextKey
+}
+
 type OpClass struct {
 	OpBase
 	cls CharClass

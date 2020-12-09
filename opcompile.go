@@ -122,15 +122,22 @@ func (oc *opCompiler) compileRepeat(re Regexp, min, max int, follower OpTree) Op
 			return self
 		}
 		oc.repeatCount++
-		self := &OpRepeat{
+		repeat := &OpAltZeroWidthCheck{
 			OpBase: OpBase{
 				minReq: follower.minimumReq(),
 			},
 			key: contextKey{'r', oc.repeatCount},
 			alt: follower,
 		}
-		self.follower = oc.compile(re, self) // self-reference makes infinite loop
-		return self
+		repeat.follower = oc.compile(re, repeat) // self-reference makes infinite loop
+		return &OpRepeat{
+			OpBase: OpBase{
+				minReq:   follower.minimumReq(),
+				follower: oc.compile(re, repeat),
+			},
+			key: contextKey{'r', oc.repeatCount},
+			alt: follower,
+		}
 	}
 	// If you are here, that means min==0 && max==0
 	return follower

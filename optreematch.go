@@ -55,13 +55,18 @@ func (ome opMatchEngine) exec(next OpTree, c uintptr, p int) *opMatchContext {
 			}
 			next = op.alt
 		case *OpRepeat:
+			ctx2 := ctx.with(op.key, p)
+			if r := ome.exec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p); r != nil {
+				return r
+			}
+			next = op.alt
+		case *OpAltZeroWidthCheck:
 			prev := ctx.findVal(op.key)
 			if prev == p { // This means zero-width matching occurs.
 				next = op.alt // So, terminate repeating.
 				continue
 			}
-			ctx2 := ctx.with(op.key, p)
-			if r := ome.exec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p); r != nil {
+			if r := ome.exec(op.follower, uintptr(unsafe.Pointer(c)), p); r != nil {
 				return r
 			}
 			next = op.alt
