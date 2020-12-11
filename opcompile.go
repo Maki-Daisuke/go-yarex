@@ -1,4 +1,4 @@
-package reaot
+package yarex
 
 func newOpAlt(left, right OpTree) *OpAlt {
 	min := left.minimumReq()

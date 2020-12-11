@@ -1,4 +1,4 @@
-package reaot
+package yarex
 
 // matchContext forms linked-list using link to its parent node.
 // It holds an index number of a capturing group and a position in a string
