@@ -6,7 +6,7 @@ import (
 	"unsafe"
 )
 
-func Match(re Ast, s string) bool {
+func astMatch(re Ast, s string) bool {
 	c := matchContext{nil, 0, 0, s}
 	if re.match(uintptr(unsafe.Pointer(&c)), 0, func(c uintptr, _ int) *matchContext { return (*matchContext)(unsafe.Pointer(c)) }) != nil {
 		return true

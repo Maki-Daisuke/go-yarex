@@ -6,27 +6,27 @@ import (
 )
 
 func testMatchStrings(t *testing.T, restr string, tests []string) {
-	re, err := parse(restr)
-	re = optimizeAst(re)
-	op := opCompile(re)
+	ast, err := parse(restr)
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
+	ast = optimizeAst(ast)
+	yaRe := MustCompile(restr)
 	goRe := regexp.MustCompile(restr)
 	for _, str := range tests {
 		match := goRe.MatchString(str)
-		if Match(re, str) != match {
+		if astMatch(ast, str) != match {
 			if match {
-				t.Errorf("(Interp) %v should match against %q, but didn't", re, str)
+				t.Errorf("(Interp) %v should match against %q, but didn't", ast, str)
 			} else {
-				t.Errorf("(Interp) %v shouldn't match against %q, but did", re, str)
+				t.Errorf("(Interp) %v shouldn't match against %q, but did", ast, str)
 			}
 		}
-		if MatchOpTree(op, str) != match {
+		if yaRe.MatchString(str) != match {
 			if match {
-				t.Errorf("(OpTree) %v should match against %q, but didn't", re, str)
+				t.Errorf("(OpTree) %v should match against %q, but didn't", yaRe, str)
 			} else {
-				t.Errorf("(OpTree) %v shouldn't match against %q, but did", re, str)
+				t.Errorf("(OpTree) %v shouldn't match against %q, but did", yaRe, str)
 			}
 		}
 	}
@@ -181,25 +181,26 @@ func TestMatchBackRef(t *testing.T) {
 		{"hoge", false},
 		{"fuga", false},
 	}
-	re, err := parse(`(hoge)\1fuga`)
+	pattern := `(hoge)\1fuga`
+	ast, err := parse(pattern)
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
-	re = optimizeAst(re)
-	reOp := opCompile(re)
+	ast = optimizeAst(ast)
+	yaRe := MustCompile(pattern)
 	for _, test := range tests {
-		if Match(re, test.str) != test.result {
+		if astMatch(ast, test.str) != test.result {
 			if test.result {
-				t.Errorf("(Interp) %v should match against %q, but didn't", re, test.str)
+				t.Errorf("(Interp) %v should match against %q, but didn't", ast, test.str)
 			} else {
-				t.Errorf("(Interp) %v shouldn't match against %q, but did", re, test.str)
+				t.Errorf("(Interp) %v shouldn't match against %q, but did", ast, test.str)
 			}
 		}
-		if MatchOpTree(reOp, test.str) != test.result {
+		if yaRe.MatchString(test.str) != test.result {
 			if test.result {
-				t.Errorf("(OpTree) %v should match against %q, but didn't", re, test.str)
+				t.Errorf("(OpTree) %v should match against %q, but didn't", yaRe, test.str)
 			} else {
-				t.Errorf("(OpTree) %v shouldn't match against %q, but did", re, test.str)
+				t.Errorf("(OpTree) %v shouldn't match against %q, but did", yaRe, test.str)
 			}
 		}
 	}

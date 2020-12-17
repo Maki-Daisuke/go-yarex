@@ -6,7 +6,7 @@ import (
 	"unsafe"
 )
 
-func MatchOpTree(op OpTree, s string) bool {
+func matchOpTree(op OpTree, s string) bool {
 	ome := opMatchEngine{func(_ *opMatchContext) {}}
 	ctx := &opMatchContext{nil, s, contextKey{'c', 0}, 0}
 	if ome.exec(op, uintptr(unsafe.Pointer(ctx)), 0) != nil {
