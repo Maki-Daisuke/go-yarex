@@ -6,37 +6,44 @@ import (
 	"unsafe"
 )
 
-func matchOpTree(op OpTree, s string) bool {
-	ome := opMatchEngine{func(_ *opMatchContext) {}}
-	ctx := &opMatchContext{nil, s, contextKey{'c', 0}, 0}
-	if ome.exec(op, uintptr(unsafe.Pointer(ctx)), 0) {
-		return true
-	}
-	if _, ok := op.(*OpAssertBegin); ok {
+type opExecer struct {
+	op OpTree
+}
+
+func (oe opExecer) exec(str string, pos int, onSuccess func(*opMatchContext)) bool {
+	op := oe.op
+	_, headOnly := op.(*OpAssertBegin)
+	if headOnly && pos != 0 {
 		return false
 	}
 	minReq := op.minimumReq()
-	for i := 1; minReq <= len(s)-i; i++ {
-		ctx = &opMatchContext{nil, s, contextKey{'c', 0}, i}
-		if ome.exec(op, uintptr(unsafe.Pointer(ctx)), i) {
+	if minReq > len(str)-pos {
+		return false
+	}
+	ctx := opMatchContext{nil, str, contextKey{'c', 0}, pos}
+	if opTreeExec(op, uintptr(unsafe.Pointer(&ctx)), pos, onSuccess) {
+		return true
+	}
+	if headOnly {
+		return false
+	}
+	for i := pos + 1; minReq <= len(str)-i; i++ {
+		ctx := opMatchContext{nil, str, contextKey{'c', 0}, i}
+		if opTreeExec(op, uintptr(unsafe.Pointer(&ctx)), i, onSuccess) {
 			return true
 		}
 	}
 	return false
 }
 
-type opMatchEngine struct {
-	onSuccess func(*opMatchContext)
-}
-
-func (ome opMatchEngine) exec(next OpTree, c uintptr, p int) bool {
+func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*opMatchContext)) bool {
 	ctx := (*opMatchContext)(unsafe.Pointer(c))
 	str := ctx.str
 	for {
 		switch op := next.(type) {
 		case OpSuccess:
 			c := ctx.with(contextKey{'c', 0}, p)
-			ome.onSuccess(&c)
+			onSuccess(&c)
 			return true
 		case *OpStr:
 			if len(str)-p < op.minReq {
@@ -50,7 +57,7 @@ func (ome opMatchEngine) exec(next OpTree, c uintptr, p int) bool {
 			next = op.follower
 			p += len(op.str)
 		case *OpAlt:
-			if ome.exec(op.follower, c, p) {
+			if opTreeExec(op.follower, c, p, onSuccess) {
 				return true
 			}
 			next = op.alt
@@ -61,7 +68,7 @@ func (ome opMatchEngine) exec(next OpTree, c uintptr, p int) bool {
 				continue
 			}
 			ctx2 := ctx.with(op.key, p)
-			if ome.exec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p) {
+			if opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess) {
 				return true
 			}
 			next = op.alt
@@ -93,10 +100,10 @@ func (ome opMatchEngine) exec(next OpTree, c uintptr, p int) bool {
 			p += size
 		case *OpCaptureStart:
 			ctx2 := ctx.with(op.key, p)
-			return ome.exec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p)
+			return opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
 		case *OpCaptureEnd:
 			ctx2 := ctx.with(op.key, p)
-			return ome.exec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p)
+			return opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
 		case *OpBackRef:
 			s, ok := ctx.GetCaptured(op.key)
 			if !ok || !strings.HasPrefix(str[p:], s) {

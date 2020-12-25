@@ -1,8 +1,12 @@
 package yarex
 
+type execer interface {
+	exec(str string, pos int, onSuccess func(*opMatchContext)) bool
+}
+
 type Regexp struct {
 	str string
-	op  OpTree
+	exe execer
 }
 
 func Compile(ptn string) (*Regexp, error) {
@@ -11,10 +15,8 @@ func Compile(ptn string) (*Regexp, error) {
 		return nil, err
 	}
 	ast = optimizeAst(ast)
-	return &Regexp{
-		str: ptn,
-		op:  opCompile(ast),
-	}, nil
+	op := opCompile(ast)
+	return &Regexp{ptn, opExecer{op}}, nil
 }
 
 func MustCompile(ptn string) *Regexp {
@@ -30,5 +32,5 @@ func (re Regexp) String() string {
 }
 
 func (re Regexp) MatchString(s string) bool {
-	return matchOpTree(re.op, s)
+	return re.exe.exec(s, 0, func(_ *opMatchContext) {})
 }
