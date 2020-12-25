@@ -34,3 +34,30 @@ func TestMatchFooBar(t *testing.T) {
 		"foo ba",
 	})
 }
+
+func TestMatchFooOrBar(t *testing.T) {
+	yarex.MustCompile("foo|bar") //yarexgen
+	testMatchStrings(t, "foo|bar", []string{
+		"foo bar",
+		"hogefoo barfuga",
+		"foo baz",
+		"bar f",
+		"foba",
+		"",
+	})
+}
+
+func TestMatchFooOrBarOrBaz(t *testing.T) {
+	yarex.MustCompile("foo|bar|baz") //yarexgen
+	testMatchStrings(t, "foo|bar|baz", []string{
+		"foo bar",
+		"hogefoo barfuga",
+		"foo baz",
+		"bar f",
+		"foba",
+		"ba",
+		"baz",
+		"fobabaf",
+		"fbboaaorz",
+	})
+}

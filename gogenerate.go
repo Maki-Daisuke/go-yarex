@@ -48,7 +48,7 @@ func (gg *GoGenerator) Add(rs ...string) error {
 func (gg *GoGenerator) WriteTo(w io.Writer) (int64, error) {
 	var acc int64
 	n, err := fmt.Fprintf(w, `package %s
-	
+
 	import (
 		"fmt"
 		"unsafe"
@@ -132,6 +132,8 @@ func (gg *GoGenerator) generateAst(funcID string, re Ast, follower *codeFragment
 		return gg.generateLit(string(r), follower)
 	case *AstSeq:
 		return gg.generateSeq(funcID, r.seq, follower)
+	case *AstAlt:
+		return gg.generateAlt(funcID, r.opts, follower)
 	default:
 		panic(fmt.Errorf("Please implement compiler for %T", re))
 	}
@@ -165,4 +167,51 @@ func (gg *GoGenerator) generateSeq(funcID string, seq []Ast, follower *codeFragm
 	}
 	follower = gg.generateSeq(funcID, seq[1:], follower)
 	return gg.generateAst(funcID, seq[0], follower)
+}
+
+func (gg *GoGenerator) generateAlt(funcID string, opts []Ast, follower *codeFragments) *codeFragments {
+	switch len(opts) {
+	case 0:
+		return follower
+	case 1:
+		return gg.generateSeq(funcID, opts, follower)
+	}
+
+	origMinReq := follower.minReq
+
+	followerState := gg.newState()
+	follower = follower.prepend(fmt.Sprintf(`
+		fallthrough
+	case %d:
+	`, followerState))
+	follower = gg.generateAst(funcID, opts[len(opts)-1], follower)
+	minReq := follower.minReq
+	stateLastOpt := gg.newState()
+	follower = follower.prepend(fmt.Sprintf("case %d:\n", stateLastOpt))
+
+	states := make([]uint, len(opts)-1)
+	for i := len(opts) - 2; i >= 0; i-- {
+		follower = follower.prepend(fmt.Sprintf("state = %d\n", followerState))
+		follower.minReq = origMinReq
+		follower = gg.generateAst(funcID, opts[i], follower)
+		if follower.minReq < minReq {
+			minReq = follower.minReq
+		}
+		s := gg.newState()
+		follower = follower.prepend(fmt.Sprintf("case %d:\n", s))
+		states[i] = s
+	}
+
+	tries := make([]string, len(states))
+	for i, s := range states {
+		tries[i] = fmt.Sprintf(`%s(%d, c, p, onSuccess)`, funcID, s)
+	}
+	follower = follower.prepend(fmt.Sprintf(`
+		if %s {
+			return true
+		}
+		state = %d
+	`, strings.Join(tries, " || "), stateLastOpt))
+	follower.minReq = minReq
+	return follower
 }
