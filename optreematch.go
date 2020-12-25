@@ -10,7 +10,7 @@ type opExecer struct {
 	op OpTree
 }
 
-func (oe opExecer) exec(str string, pos int, onSuccess func(*opMatchContext)) bool {
+func (oe opExecer) exec(str string, pos int, onSuccess func(*MatchContext)) bool {
 	op := oe.op
 	_, headOnly := op.(*OpAssertBegin)
 	if headOnly && pos != 0 {
@@ -20,7 +20,7 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(*opMatchContext)) bo
 	if minReq > len(str)-pos {
 		return false
 	}
-	ctx := opMatchContext{nil, str, contextKey{'c', 0}, pos}
+	ctx := MatchContext{nil, str, ContextKey{'c', 0}, pos}
 	if opTreeExec(op, uintptr(unsafe.Pointer(&ctx)), pos, onSuccess) {
 		return true
 	}
@@ -28,7 +28,7 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(*opMatchContext)) bo
 		return false
 	}
 	for i := pos + 1; minReq <= len(str)-i; i++ {
-		ctx := opMatchContext{nil, str, contextKey{'c', 0}, i}
+		ctx := MatchContext{nil, str, ContextKey{'c', 0}, i}
 		if opTreeExec(op, uintptr(unsafe.Pointer(&ctx)), i, onSuccess) {
 			return true
 		}
@@ -36,13 +36,13 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(*opMatchContext)) bo
 	return false
 }
 
-func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*opMatchContext)) bool {
-	ctx := (*opMatchContext)(unsafe.Pointer(c))
-	str := ctx.str
+func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*MatchContext)) bool {
+	ctx := (*MatchContext)(unsafe.Pointer(c))
+	str := ctx.Str
 	for {
 		switch op := next.(type) {
 		case OpSuccess:
-			c := ctx.with(contextKey{'c', 0}, p)
+			c := ctx.With(ContextKey{'c', 0}, p)
 			onSuccess(&c)
 			return true
 		case *OpStr:
@@ -62,12 +62,12 @@ func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*opMatchContext)) 
 			}
 			next = op.alt
 		case *OpRepeat:
-			prev := ctx.findVal(op.key)
+			prev := ctx.FindVal(op.key)
 			if prev == p { // This means zero-width matching occurs.
 				next = op.alt // So, terminate repeating.
 				continue
 			}
-			ctx2 := ctx.with(op.key, p)
+			ctx2 := ctx.With(op.key, p)
 			if opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess) {
 				return true
 			}
@@ -99,10 +99,10 @@ func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*opMatchContext)) 
 			next = op.follower
 			p += size
 		case *OpCaptureStart:
-			ctx2 := ctx.with(op.key, p)
+			ctx2 := ctx.With(op.key, p)
 			return opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
 		case *OpCaptureEnd:
-			ctx2 := ctx.with(op.key, p)
+			ctx2 := ctx.With(op.key, p)
 			return opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
 		case *OpBackRef:
 			s, ok := ctx.GetCaptured(op.key)

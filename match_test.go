@@ -11,7 +11,7 @@ func testMatchStrings(t *testing.T, restr string, tests []string) {
 		t.Fatalf("want nil, but got %s", err)
 	}
 	ast = optimizeAst(ast)
-	yaRe := MustCompile(restr)
+	yaRe := MustCompileOp(restr)
 	goRe := regexp.MustCompile(restr)
 	for _, str := range tests {
 		match := goRe.MatchString(str)

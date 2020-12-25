@@ -1,7 +1,7 @@
 package yarex
 
 type execer interface {
-	exec(str string, pos int, onSuccess func(*opMatchContext)) bool
+	exec(str string, pos int, onSuccess func(*MatchContext)) bool
 }
 
 type Regexp struct {
@@ -10,6 +10,9 @@ type Regexp struct {
 }
 
 func Compile(ptn string) (*Regexp, error) {
+	if r, ok := compiledRegexps[ptn]; ok {
+		return r, nil
+	}
 	ast, err := parse(ptn)
 	if err != nil {
 		return nil, err
@@ -32,5 +35,5 @@ func (re Regexp) String() string {
 }
 
 func (re Regexp) MatchString(s string) bool {
-	return re.exe.exec(s, 0, func(_ *opMatchContext) {})
+	return re.exe.exec(s, 0, func(_ *MatchContext) {})
 }

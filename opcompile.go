@@ -54,7 +54,7 @@ func (oc *opCompiler) compile(re Ast, follower OpTree) OpTree {
 				minReq:   follower.minimumReq(),
 				follower: follower,
 			},
-			key: contextKey{'c', uint(r)},
+			key: ContextKey{'c', uint(r)},
 		}
 	case AstAssertBegin:
 		return &OpAssertBegin{
@@ -126,7 +126,7 @@ func (oc *opCompiler) compileRepeat(re Ast, min, max int, follower OpTree) OpTre
 			OpBase: OpBase{
 				minReq: follower.minimumReq(),
 			},
-			key: contextKey{'r', oc.repeatCount},
+			key: ContextKey{'r', oc.repeatCount},
 			alt: follower,
 		}
 		self.follower = oc.compile(re, self) // self-reference makes infinite loop
@@ -172,7 +172,7 @@ func (oc *opCompiler) compileCapture(re Ast, index uint, follower OpTree) OpTree
 			minReq:   follower.minimumReq(),
 			follower: follower,
 		},
-		key: contextKey{'c', index},
+		key: ContextKey{'c', index},
 	}
 	follower = oc.compile(re, follower)
 	return &OpCaptureStart{
@@ -180,6 +180,6 @@ func (oc *opCompiler) compileCapture(re Ast, index uint, follower OpTree) OpTree
 			minReq:   follower.minimumReq(),
 			follower: follower,
 		},
-		key: contextKey{'c', index},
+		key: ContextKey{'c', index},
 	}
 }

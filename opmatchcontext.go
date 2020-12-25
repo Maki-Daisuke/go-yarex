@@ -1,6 +1,11 @@
 package yarex
 
-// opMatchContext forms linked-list using reference to its parent node.
+type ContextKey struct {
+	Kind  rune
+	Index uint
+}
+
+// MatchContext forms linked-list using reference to its parent node.
 // It holds a key and an integer value, which are used to represent both capturing groups
 // and start position of repeat for checking zero-width matcing.
 // A pair integers with the identical "cN" key represents the end and the start
@@ -15,58 +20,53 @@ package yarex
 //
 // This means, captured string by the first "()" is indexed as str[2:5] and
 // whole matched string is indexed as str[1:9].
-type contextKey struct {
-	kind  rune
-	index uint
+type MatchContext struct {
+	Parent *MatchContext
+	Str    string
+	Key    ContextKey
+	Pos    int
 }
 
-type opMatchContext struct {
-	parent *opMatchContext
-	str    string
-	key    contextKey
-	pos    int
-}
-
-func (c *opMatchContext) with(k contextKey, p int) opMatchContext {
-	return opMatchContext{
-		parent: c,
-		str:    c.str,
-		key:    k,
-		pos:    p,
+func (c *MatchContext) With(k ContextKey, p int) MatchContext {
+	return MatchContext{
+		Parent: c,
+		Str:    c.Str,
+		Key:    k,
+		Pos:    p,
 	}
 }
 
-func (c *opMatchContext) GetCaptured(k contextKey) (string, bool) {
+func (c *MatchContext) GetCaptured(k ContextKey) (string, bool) {
 	var start, end int
-	for ; ; c = c.parent {
+	for ; ; c = c.Parent {
 		if c == nil {
 			return "", false
 		}
-		if c.key == k {
-			end = c.pos
+		if c.Key == k {
+			end = c.Pos
 			break
 		}
 	}
-	c = c.parent
-	for ; ; c = c.parent {
+	c = c.Parent
+	for ; ; c = c.Parent {
 		if c == nil {
 			// This should not happen.
 			panic("Undetermined capture")
 		}
-		if c.key == k {
-			start = c.pos
-			return c.str[start:end], true
+		if c.Key == k {
+			start = c.Pos
+			return c.Str[start:end], true
 		}
 	}
 }
 
-func (c *opMatchContext) findVal(k contextKey) int {
-	for ; ; c = c.parent {
+func (c *MatchContext) FindVal(k ContextKey) int {
+	for ; ; c = c.Parent {
 		if c == nil {
 			return -1
 		}
-		if c.key == k {
-			return c.pos
+		if c.Key == k {
+			return c.Pos
 		}
 	}
 }

@@ -5,6 +5,18 @@ import (
 	"strings"
 )
 
+// MustCompileOp is identical to MustCompile, but ignores compiled version of regexp
+// and returns OpTree version.
+func MustCompileOp(ptn string) *Regexp {
+	ast, err := parse(ptn)
+	if err != nil {
+		panic(err)
+	}
+	ast = optimizeAst(ast)
+	op := opCompile(ast)
+	return &Regexp{ptn, opExecer{op}}
+}
+
 func DumpAst(re Ast) string {
 	var buf strings.Builder
 	dumpAux(re, 0, &buf)
