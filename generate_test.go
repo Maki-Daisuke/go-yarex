@@ -143,6 +143,7 @@ func TestMatchWildcard(t *testing.T) {
 		" ",
 		"\b",
 	})
+	yarex.MustCompile(".+x") //yarexgen
 	testMatchStrings(t, ".+x", []string{
 		"",
 		"x",
