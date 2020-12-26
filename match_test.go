@@ -187,7 +187,7 @@ func TestMatchBackRef(t *testing.T) {
 		t.Fatalf("want nil, but got %s", err)
 	}
 	ast = optimizeAst(ast)
-	yaRe := MustCompile(pattern)
+	yaRe := MustCompileOp(pattern)
 	for _, test := range tests {
 		if astMatch(ast, test.str) != test.result {
 			if test.result {
