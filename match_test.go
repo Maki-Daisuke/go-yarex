@@ -55,7 +55,7 @@ func TestMatchFooOrBar(t *testing.T) {
 }
 
 func TestMatchBacktracking(t *testing.T) {
-	testMatchStrings(t, "(foo|fo)oh", []string{
+	testMatchStrings(t, "(?:foo|fo)oh", []string{
 		"fooh",
 		"foooh",
 		"foh",

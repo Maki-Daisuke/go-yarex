@@ -106,9 +106,9 @@ func (p *parser) parseGroup(str []rune) (Ast, []rune) {
 		return p.parseCapture(str[1:])
 	}
 	if str[2] != ':' {
-		panic(fmt.Errorf("Unknown extended pattern syntzx: %q", string(str)))
+		panic(fmt.Errorf("Unknown extended pattern syntax: %q", string(str)))
 	}
-	re, remain := p.parseAlt(str[1:])
+	re, remain := p.parseAlt(str[3:])
 	if remain[0] != ')' {
 		panic(fmt.Errorf("Unmatched '(' : %q", string(str)))
 	}
