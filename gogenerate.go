@@ -19,6 +19,7 @@ type funcResult struct {
 
 type GoGenerator struct {
 	pkgname     string
+	useUtf8     bool
 	stateCount  uint
 	varCount    uint
 	repeatCount uint
@@ -26,7 +27,10 @@ type GoGenerator struct {
 }
 
 func NewGoGenerator(pkg string) *GoGenerator {
-	return &GoGenerator{pkg, 0, 0, 0, map[string]funcResult{}}
+	gg := &GoGenerator{}
+	gg.pkgname = pkg
+	gg.funcs = map[string]funcResult{}
+	return gg
 }
 
 func (gg *GoGenerator) Add(rs ...string) error {
@@ -48,14 +52,19 @@ func (gg *GoGenerator) Add(rs ...string) error {
 
 func (gg *GoGenerator) WriteTo(w io.Writer) (int64, error) {
 	var acc int64
+	importUtf8 := ""
+	if gg.useUtf8 {
+		importUtf8 = `"unicode/utf8"`
+	}
 	n, err := fmt.Fprintf(w, `package %s
 
 	import (
 		"fmt"
 		"unsafe"
+		%s
 		"github.com/Maki-Daisuke/go-yarex"
 	)
-	`, gg.pkgname)
+	`, gg.pkgname, importUtf8)
 	acc += int64(n)
 	if err != nil {
 		return acc, err
@@ -137,14 +146,19 @@ func (gg *GoGenerator) generateAst(funcID string, re Ast, follower *codeFragment
 	case AstLit:
 		return gg.generateLit(string(r), follower)
 	case AstNotNewline:
+		gg.useUtf8 = true
 		return &codeFragments{follower.minReq + 1, fmt.Sprintf(`
 			if len(str)-p < %d {
 				return false
 			}
-			if str[p] == '\n' {
+			r, size := utf8.DecodeRuneInString(str[p:])
+			if size == 0 || r == utf8.RuneError {
 				return false
 			}
-			p += 1
+			if r == '\n' {
+				return false
+			}
+			p += size
 		`, follower.minReq+1), follower}
 	case *AstSeq:
 		return gg.generateSeq(funcID, r.seq, follower)
