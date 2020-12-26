@@ -160,3 +160,14 @@ func TestMatchWildcard(t *testing.T) {
 		"xxxxxa",
 	})
 }
+
+func TestMatchBackRef(t *testing.T) {
+	yarex.MustCompile(`(hoge)\1fuga`) //yarexgen
+	testMatchStrings(t, `(hoge)\1fuga`, []string{
+		"hogehogefuga",
+		"AAAhogehogefugaBBB",
+		"hogefuga",
+		"hoge",
+		"fuga",
+	})
+}

@@ -152,6 +152,10 @@ func (gg *GoGenerator) generateAst(funcID string, re Ast, follower *codeFragment
 		return gg.generateAlt(funcID, r.opts, follower)
 	case *AstRepeat:
 		return gg.generateRepeat(funcID, r.re, r.min, r.max, follower)
+	case *AstCap:
+		return gg.compileCapture(funcID, r.re, r.index, follower)
+	case AstBackRef:
+		return gg.compileBackRef(uint(r), follower)
 	default:
 		panic(fmt.Errorf("Please implement compiler for %T", re))
 	}
@@ -300,4 +304,39 @@ func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follo
 		fallthrough
 	case %d:
 	`, startState))
+}
+
+func (gg *GoGenerator) compileCapture(funcID string, re Ast, index uint, follower *codeFragments) *codeFragments {
+	followerState := gg.newState()
+	follower = follower.prepend(fmt.Sprintf(`
+		ctx2 := ctx.With(yarex.ContextKey{'c', %d}, p)
+		return %s(%d, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
+	case %d:
+	`, index, funcID, followerState, followerState))
+	follower = gg.generateAst(funcID, re, follower)
+	s := gg.newState()
+	return follower.prepend(fmt.Sprintf(`
+		ctx2 := ctx.With(yarex.ContextKey{'c', %d}, p)
+		return %s(%d, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
+	case %d:
+	`, index, funcID, s, s))
+}
+
+func (gg *GoGenerator) compileBackRef(index uint, follower *codeFragments) *codeFragments {
+	return follower.prepend(fmt.Sprintf(`
+		s, ok := ctx.GetCaptured(yarex.ContextKey{'c', %d})
+		if !ok {  // There is no captured string with the index. So, failed matching.
+			return false
+		}
+		l := len(s)
+		if len(str)-p < l {
+			return false
+		}
+		for i := 0; i < l; i++ {
+			if str[p+i] != s[i] {
+				return false
+			}
+		}
+		p += l
+	`, index))
 }
