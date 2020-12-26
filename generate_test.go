@@ -62,6 +62,18 @@ func TestMatchFooOrBarOrBaz(t *testing.T) {
 	})
 }
 
+func TestMatchBacktracking(t *testing.T) {
+	yarex.MustCompile("(?:foo|fo)oh") //yarexgen
+	testMatchStrings(t, "(?:foo|fo)oh", []string{
+		"fooh",
+		"foooh",
+		"foh",
+		"fooooooooooh",
+		"fooooooooofoooh",
+		"",
+	})
+}
+
 func TestMatchZeroOrMore(t *testing.T) {
 	yarex.MustCompile("fo*oh") //yarexgen
 	testMatchStrings(t, "fo*oh", []string{
