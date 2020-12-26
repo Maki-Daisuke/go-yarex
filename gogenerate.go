@@ -136,6 +136,16 @@ func (gg *GoGenerator) generateAst(funcID string, re Ast, follower *codeFragment
 	switch r := re.(type) {
 	case AstLit:
 		return gg.generateLit(string(r), follower)
+	case AstNotNewline:
+		return &codeFragments{follower.minReq + 1, fmt.Sprintf(`
+			if len(str)-p < %d {
+				return false
+			}
+			if str[p] == '\n' {
+				return false
+			}
+			p += 1
+		`, follower.minReq+1), follower}
 	case *AstSeq:
 		return gg.generateSeq(funcID, r.seq, follower)
 	case *AstAlt:
