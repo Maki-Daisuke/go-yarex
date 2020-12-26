@@ -10,7 +10,13 @@ import (
 
 func testMatchStrings(t *testing.T, restr string, tests []string) {
 	opRe := yarex.MustCompileOp(restr)
+	if !yarex.IsOpMatcher(opRe) {
+		t.Errorf("%v should be OpTree matcher, but isn't", opRe)
+	}
 	compRe := yarex.MustCompile(restr) // should be compiled version
+	if !yarex.IsCompiledMatcher(compRe) {
+		t.Errorf("%v should be Compiled matcher, but isn't", compRe)
+	}
 	for _, str := range tests {
 		match := opRe.MatchString(str)
 		if compRe.MatchString(str) != match {

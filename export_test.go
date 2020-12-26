@@ -17,6 +17,16 @@ func MustCompileOp(ptn string) *Regexp {
 	return &Regexp{ptn, opExecer{op}}
 }
 
+func IsOpMatcher(r *Regexp) bool {
+	_, ok := r.exe.(opExecer)
+	return ok
+}
+
+func IsCompiledMatcher(r *Regexp) bool {
+	_, ok := r.exe.(*compiledExecer)
+	return ok
+}
+
 func DumpAst(re Ast) string {
 	var buf strings.Builder
 	dumpAux(re, 0, &buf)
