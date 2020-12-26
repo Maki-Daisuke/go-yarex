@@ -61,3 +61,63 @@ func TestMatchFooOrBarOrBaz(t *testing.T) {
 		"fbboaaorz",
 	})
 }
+
+func TestMatchZeroOrMore(t *testing.T) {
+	yarex.MustCompile("fo*oh") //yarexgen
+	testMatchStrings(t, "fo*oh", []string{
+		"fooh",
+	})
+}
+
+func TestMatchOneOrMore(t *testing.T) {
+	yarex.MustCompile("fo+oh") //yarexgen
+	testMatchStrings(t, "fo+oh", []string{
+		"fooh",
+		"foh",
+		"fh",
+		"fooooooooooh",
+		"fooooooooofoooh",
+		"",
+		"fo",
+		"oh",
+	})
+}
+
+func TestMatchQuantifier(t *testing.T) {
+	yarex.MustCompile("fo{2,5}oh") //yarexgen
+	testMatchStrings(t, "fo{2,5}oh", []string{
+		"fooh",
+		"foh",
+		"fh",
+		"fooooooooooh",
+		"fooooooooofoooh",
+		"",
+		"fo",
+		"oh",
+	})
+}
+
+func TestMatchOpt(t *testing.T) {
+	yarex.MustCompile("fo?oh") //yarexgen
+	testMatchStrings(t, "fo?oh", []string{
+		"fooh",
+		"foh",
+		"fh",
+		"fooooooooooh",
+		"fooooooooofooh",
+		"",
+		"fo",
+		"oh",
+	})
+	yarex.MustCompile("fo*oh?") //yarexgen
+	testMatchStrings(t, "fo*oh?", []string{
+		"ABfooh",
+		"foo",
+		"fh",
+		"foooohoooooo",
+		"foooooooooooCD",
+		"",
+		"fo",
+		"oh",
+	})
+}

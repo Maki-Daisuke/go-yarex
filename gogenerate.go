@@ -18,14 +18,15 @@ type funcResult struct {
 }
 
 type GoGenerator struct {
-	pkgname    string
-	stateCount uint
-	varCount   uint
-	funcs      map[string]funcResult
+	pkgname     string
+	stateCount  uint
+	varCount    uint
+	repeatCount uint
+	funcs       map[string]funcResult
 }
 
 func NewGoGenerator(pkg string) *GoGenerator {
-	return &GoGenerator{pkg, 0, 0, map[string]funcResult{}}
+	return &GoGenerator{pkg, 0, 0, 0, map[string]funcResult{}}
 }
 
 func (gg *GoGenerator) Add(rs ...string) error {
@@ -101,6 +102,11 @@ func (gg *GoGenerator) newVar() uint {
 	return gg.varCount
 }
 
+func (gg *GoGenerator) newRepeatID() uint {
+	gg.repeatCount++
+	return gg.repeatCount
+}
+
 func (gg *GoGenerator) generateFunc(funcID string, re Ast) *codeFragments {
 	cf := &codeFragments{0, fmt.Sprintf(
 		`func %s (state int, c uintptr, p int, onSuccess func(*yarex.MatchContext)) bool {
@@ -134,6 +140,8 @@ func (gg *GoGenerator) generateAst(funcID string, re Ast, follower *codeFragment
 		return gg.generateSeq(funcID, r.seq, follower)
 	case *AstAlt:
 		return gg.generateAlt(funcID, r.opts, follower)
+	case *AstRepeat:
+		return gg.generateRepeat(funcID, r.re, r.min, r.max, follower)
 	default:
 		panic(fmt.Errorf("Please implement compiler for %T", re))
 	}
@@ -214,4 +222,72 @@ func (gg *GoGenerator) generateAlt(funcID string, opts []Ast, follower *codeFrag
 	`, strings.Join(tries, " || "), stateLastOpt))
 	follower.minReq = minReq
 	return follower
+}
+
+func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follower *codeFragments) *codeFragments {
+	if min > 0 {
+		return gg.generateAst(funcID, re, gg.generateRepeat(funcID, re, min-1, max-1, follower))
+	}
+	if max == 0 {
+		return follower
+	}
+	if max > 0 {
+		follower = gg.generateRepeat(funcID, re, 0, max-1, follower)
+		followerState := gg.newState()
+		follower = follower.prepend(fmt.Sprintf(`
+			fallthrough
+		case %d:
+		`, followerState))
+		minReq := follower.minReq
+		follower = gg.generateAst(funcID, re, follower)
+		altState := gg.newState()
+		follower = follower.prepend(fmt.Sprintf(`
+			if %s(%d, c, p, onSuccess) {
+				return true
+			}
+			state = %d
+		case %d:
+		`, funcID, altState, followerState, altState))
+		follower.minReq = minReq
+		return follower
+	}
+	// Here, we need to compile infinite-loop regexp
+	startState := gg.newState()
+	repeatState := gg.newState()
+	followerState := gg.newState()
+	follower = follower.prepend(fmt.Sprintf(`
+		state = %d
+	case %d:
+	`, startState, followerState))
+	minReq := follower.minReq
+	follower = gg.generateAst(funcID, re, follower)
+	if canMatchZeroWidth(re) { // If re can matches zero-width string, we need zero-width check
+		repeatID := gg.newRepeatID()
+		follower = follower.prepend(fmt.Sprintf(`
+			prev := ctx.FindVal(yarex.ContextKey{'r', %d})
+			if prev == p { // This means zero-width matching occurs.
+				state = %d // So, terminate repeating.
+				continue
+			}
+			ctx2 := ctx.With(yarex.ContextKey{'r', %d}, p)
+			if %s(%d, uintptr(unsafe.Pointer(&ctx)), p, onSuccess) {
+				return true
+			}
+			state = %d
+		case %d:
+		`, repeatID, followerState, repeatID, funcID, repeatState, followerState, repeatState))
+	} else { // We can skip zero-width check for optimization
+		follower = follower.prepend(fmt.Sprintf(`
+			if %s(%d, c, p, onSuccess) {
+				return true
+			}
+			state = %d
+		case %d:
+		`, funcID, repeatState, followerState, repeatState))
+	}
+	follower.minReq = minReq
+	return follower.prepend(fmt.Sprintf(`
+		fallthrough
+	case %d:
+	`, startState))
 }
