@@ -280,7 +280,7 @@ func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follo
 				continue
 			}
 			ctx2 := ctx.With(yarex.ContextKey{'r', %d}, p)
-			if %s(%d, uintptr(unsafe.Pointer(&ctx)), p, onSuccess) {
+			if %s(%d, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess) {
 				return true
 			}
 			state = %d
