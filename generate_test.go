@@ -30,8 +30,8 @@ func testMatchStrings(t *testing.T, restr string, tests []string) {
 }
 
 func TestMatchFooBar(t *testing.T) {
-	yarex.MustCompile("foo bar") //yarexgen
-	testMatchStrings(t, "foo bar", []string{
+	pattern := "foo bar" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"foo bar",
 		"foo  bar",
 		"hogefoo barfuga",
@@ -42,8 +42,8 @@ func TestMatchFooBar(t *testing.T) {
 }
 
 func TestMatchFooOrBar(t *testing.T) {
-	yarex.MustCompile("foo|bar") //yarexgen
-	testMatchStrings(t, "foo|bar", []string{
+	pattern := "foo|bar" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"foo bar",
 		"hogefoo barfuga",
 		"foo baz",
@@ -54,8 +54,8 @@ func TestMatchFooOrBar(t *testing.T) {
 }
 
 func TestMatchFooOrBarOrBaz(t *testing.T) {
-	yarex.MustCompile("foo|bar|baz") //yarexgen
-	testMatchStrings(t, "foo|bar|baz", []string{
+	pattern := "foo|bar|baz" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"foo bar",
 		"hogefoo barfuga",
 		"foo baz",
@@ -69,8 +69,8 @@ func TestMatchFooOrBarOrBaz(t *testing.T) {
 }
 
 func TestMatchBacktracking(t *testing.T) {
-	yarex.MustCompile("(?:foo|fo)oh") //yarexgen
-	testMatchStrings(t, "(?:foo|fo)oh", []string{
+	pattern := "(?:foo|fo)oh" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"fooh",
 		"foooh",
 		"foh",
@@ -81,15 +81,15 @@ func TestMatchBacktracking(t *testing.T) {
 }
 
 func TestMatchZeroOrMore(t *testing.T) {
-	yarex.MustCompile("fo*oh") //yarexgen
-	testMatchStrings(t, "fo*oh", []string{
+	pattern := "fo*oh" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"fooh",
 	})
 }
 
 func TestMatchOneOrMore(t *testing.T) {
-	yarex.MustCompile("fo+oh") //yarexgen
-	testMatchStrings(t, "fo+oh", []string{
+	pattern := "fo+oh" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"fooh",
 		"foh",
 		"fh",
@@ -102,8 +102,8 @@ func TestMatchOneOrMore(t *testing.T) {
 }
 
 func TestMatchQuantifier(t *testing.T) {
-	yarex.MustCompile("fo{2,5}oh") //yarexgen
-	testMatchStrings(t, "fo{2,5}oh", []string{
+	pattern := "fo{2,5}oh" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"fooh",
 		"foh",
 		"fh",
@@ -116,8 +116,8 @@ func TestMatchQuantifier(t *testing.T) {
 }
 
 func TestMatchOpt(t *testing.T) {
-	yarex.MustCompile("fo?oh") //yarexgen
-	testMatchStrings(t, "fo?oh", []string{
+	pattern := "fo?oh" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"fooh",
 		"foh",
 		"fh",
@@ -127,8 +127,8 @@ func TestMatchOpt(t *testing.T) {
 		"fo",
 		"oh",
 	})
-	yarex.MustCompile("fo*oh?") //yarexgen
-	testMatchStrings(t, "fo*oh?", []string{
+	pattern = "fo*oh?" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"ABfooh",
 		"foo",
 		"fh",
@@ -141,16 +141,16 @@ func TestMatchOpt(t *testing.T) {
 }
 
 func TestMatchWildcard(t *testing.T) {
-	yarex.MustCompile(".") //yarexgen
-	testMatchStrings(t, ".", []string{
+	pattern := "." //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"aiueo",
 		"\n",
 		"",
 		" ",
 		"\b",
 	})
-	yarex.MustCompile(".+x") //yarexgen
-	testMatchStrings(t, ".+x", []string{
+	pattern = ".+x" //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"",
 		"x",
 		"xx",
@@ -162,8 +162,8 @@ func TestMatchWildcard(t *testing.T) {
 }
 
 func TestMatchBackRef(t *testing.T) {
-	yarex.MustCompile(`(hoge)\1fuga`) //yarexgen
-	testMatchStrings(t, `(hoge)\1fuga`, []string{
+	pattern := `(hoge)\1fuga` //yarexgen
+	testMatchStrings(t, pattern, []string{
 		"hogehogefuga",
 		"AAAhogehogefugaBBB",
 		"hogefuga",

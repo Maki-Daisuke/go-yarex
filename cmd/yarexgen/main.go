@@ -57,28 +57,17 @@ LOOP:
 	}
 }
 
-// pkgname.MustCompile("STRING LITERAL")
+// find string litetal
 func findRegex(n ast.Node) (out []string) {
 	ast.Inspect(n, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
+		lit, ok := n.(*ast.BasicLit)
 		if !ok {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
+		if lit.Kind != token.STRING {
 			return true
 		}
-		if sel.Sel.Name != "MustCompile" {
-			return true
-		}
-		if len(call.Args) != 1 {
-			return true
-		}
-		str, ok := call.Args[0].(*ast.BasicLit)
-		if !ok {
-			return true
-		}
-		v := constant.MakeFromLiteral(str.Value, str.Kind, 0)
+		v := constant.MakeFromLiteral(lit.Value, lit.Kind, 0)
 		out = append(out, constant.StringVal(v))
 		return true
 	})
