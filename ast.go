@@ -108,6 +108,7 @@ func (re AstAssertEnd) String() string {
 
 type AstCharClass struct {
 	CharClass
+	str string
 }
 
 func (re AstCharClass) String() string {

@@ -171,3 +171,27 @@ func TestMatchBackRef(t *testing.T) {
 		"fuga",
 	})
 }
+
+func TestMatchClass(t *testing.T) {
+	pattern := "[0aB]" //yarexgen
+	testMatchStrings(t, pattern, []string{
+		"foo",      // false
+		"foo  bar", // true
+		"FOO BAR",  // true
+		"AAAAAA",   // false
+		"012345",   // true
+		"\000hoge", // false
+		"\000hage", // true
+	})
+	pattern = "[A-Z0-9][a-z]" //yarexgen
+	testMatchStrings(t, pattern, []string{
+		"absksdjhasd",
+		"alsdAAA",
+		"asl;k3as7djj",
+		"Aiiiiiiii9",
+		"foo BAR",
+		"FOO bar",
+		"FOObar",
+		"fooBARbaz",
+	})
+}

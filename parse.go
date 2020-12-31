@@ -273,6 +273,7 @@ LOOP:
 			str = str[2:]
 		}
 	}
+	strRep := string(origStr[0 : len(origStr)-len(str)])
 	if rangeTable.R16 != nil || rangeTable.R32 != nil {
 		ccs = append(ccs, (*RangeTableClass)(rangeTable))
 	}
@@ -292,5 +293,5 @@ LOOP:
 	if isNegate {
 		out = NegateCharClass(out)
 	}
-	return AstCharClass{out}, str
+	return AstCharClass{out, strRep}, str
 }

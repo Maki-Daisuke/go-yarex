@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	funcName = "yarexCompiledRegex"
+	funcName      = "yarexCompiledRegex"
+	charClassName = "yarexCompiledCharClass"
 )
 
 type funcResult struct {
@@ -17,19 +18,27 @@ type funcResult struct {
 	code     *codeFragments
 }
 
+type charClassResult struct {
+	id   string
+	code *codeFragments
+}
+
 type GoGenerator struct {
-	pkgname     string
-	useUtf8     bool
-	stateCount  uint
-	varCount    uint
-	repeatCount uint
-	funcs       map[string]funcResult
+	pkgname      string
+	useUtf8      bool
+	stateCount   uint
+	varCount     uint
+	repeatCount  uint
+	funcs        map[string]funcResult
+	charClasses  map[string]charClassResult
+	useCharClass bool
 }
 
 func NewGoGenerator(pkg string) *GoGenerator {
 	gg := &GoGenerator{}
 	gg.pkgname = pkg
 	gg.funcs = map[string]funcResult{}
+	gg.charClasses = map[string]charClassResult{}
 	return gg
 }
 
@@ -68,6 +77,24 @@ func (gg *GoGenerator) WriteTo(w io.Writer) (int64, error) {
 	acc += int64(n)
 	if err != nil {
 		return acc, err
+	}
+
+	for _, cr := range gg.charClasses {
+		n, err := fmt.Fprintf(w, "var %s = ", cr.id)
+		acc += int64(n)
+		if err != nil {
+			return acc, err
+		}
+		m, err := cr.code.WriteTo(w)
+		acc += m
+		if err != nil {
+			return acc, err
+		}
+		n, err = fmt.Fprintf(w, "\n")
+		acc += int64(n)
+		if err != nil {
+			return acc, err
+		}
 	}
 
 	for _, f := range gg.funcs {
@@ -117,28 +144,38 @@ func (gg *GoGenerator) newRepeatID() uint {
 }
 
 func (gg *GoGenerator) generateFunc(funcID string, re Ast) *codeFragments {
-	cf := &codeFragments{0, fmt.Sprintf(
-		`func %s (state int, c uintptr, p int, onSuccess func(*yarex.MatchContext)) bool {
-			ctx := (*yarex.MatchContext)(unsafe.Pointer(c))
-			str := ctx.Str
-			for{
-				switch state {
-				case 0:
-		`, funcID),
-		gg.generateAst(funcID, re, &codeFragments{0, `
-					c := ctx.With(yarex.ContextKey{'c', 0}, p)
-					onSuccess(&c)
-					return true
-				default:
-					// This should not happen.
-					panic(fmt.Errorf("state%d is not defined", state))
-				}
-			}
+	gg.useCharClass = false
+	follower := gg.generateAst(funcID, re, &codeFragments{0, `
+			c := ctx.With(yarex.ContextKey{'c', 0}, p)
+			onSuccess(&c)
+			return true
+		default:
+			// This should not happen.
+			panic(fmt.Errorf("state%d is not defined", state))
 		}
-		`, nil}),
 	}
-	cf.minReq = cf.follower.minReq
-	return cf
+}
+	`, nil})
+
+	varDecl := ""
+	if gg.useCharClass {
+		varDecl = `
+	var (
+		r rune
+		size int
+	)
+		`
+	}
+
+	return follower.prepend(fmt.Sprintf(`
+func %s (state int, c uintptr, p int, onSuccess func(*yarex.MatchContext)) bool {
+	%s
+	ctx := (*yarex.MatchContext)(unsafe.Pointer(c))
+	str := ctx.Str
+	for{
+		switch state {
+		case 0:
+	`, funcID, varDecl))
 }
 
 func (gg *GoGenerator) generateAst(funcID string, re Ast, follower *codeFragments) *codeFragments {
@@ -170,6 +207,8 @@ func (gg *GoGenerator) generateAst(funcID string, re Ast, follower *codeFragment
 		return gg.compileCapture(funcID, r.re, r.index, follower)
 	case AstBackRef:
 		return gg.compileBackRef(uint(r), follower)
+	case AstCharClass:
+		return gg.generateCharClass(r.str, r.CharClass, follower)
 	default:
 		panic(fmt.Errorf("Please implement compiler for %T", re))
 	}
@@ -353,4 +392,31 @@ func (gg *GoGenerator) compileBackRef(index uint, follower *codeFragments) *code
 		}
 		p += l
 	`, index))
+}
+
+func (gg *GoGenerator) generateCharClass(ptn string, c CharClass, follower *codeFragments) *codeFragments {
+	var id string
+	if r, ok := gg.charClasses[ptn]; ok {
+		id = r.id
+	} else {
+		id = fmt.Sprintf("%s%d", charClassName, gg.newVar())
+		gg.charClasses[ptn] = charClassResult{
+			id:   id,
+			code: gg.generateCharClassAux(c, nil),
+		}
+	}
+	gg.useCharClass = true
+	return &codeFragments{follower.minReq + 1, fmt.Sprintf(`
+		if len(str)-p < %d {
+			return false
+		}
+		r, size = utf8.DecodeRuneInString(str[p:])
+		if size == 0 || r == utf8.RuneError {
+			return false
+		}
+		if !%s.Contains(r) {
+			return false
+		}
+		p += size
+	`, follower.minReq+1, id), follower}
 }
