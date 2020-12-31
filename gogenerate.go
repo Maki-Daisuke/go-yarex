@@ -207,6 +207,18 @@ func (gg *GoGenerator) generateAst(funcID string, re Ast, follower *codeFragment
 		return gg.compileCapture(funcID, r.re, r.index, follower)
 	case AstBackRef:
 		return gg.compileBackRef(uint(r), follower)
+	case AstAssertBegin:
+		return follower.prepend(`
+			if p != 0 {
+				return false
+			}
+		`)
+	case AstAssertEnd:
+		return follower.prepend(`
+			if p != len(str) {
+				return false
+			}
+		`)
 	case AstCharClass:
 		return gg.generateCharClass(r.str, r.CharClass, follower)
 	default:

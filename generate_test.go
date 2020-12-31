@@ -161,6 +161,30 @@ func TestMatchWildcard(t *testing.T) {
 	})
 }
 
+func TestMatchBegin(t *testing.T) {
+	pattern := "^foo bar" //yarexgen
+	testMatchStrings(t, pattern, []string{
+		"foo bar",
+		"foo  bar",
+		"hogefoo barfuga",
+		"foo barf",
+		"Afoo bar",
+		"foo ba",
+		"\nfoo bar",
+	})
+	pattern = "(^|A)*foo bar" //yarexgen
+	testMatchStrings(t, pattern, []string{
+		"foo bar",
+		"foo  bar",
+		"hogefoo barfuga",
+		"foo barf",
+		"Afoo bar",
+		"AAfoo bar",
+		"AAAAfoo bar",
+		"AABAAfoo bar",
+	})
+}
+
 func TestMatchBackRef(t *testing.T) {
 	pattern := `(hoge)\1fuga` //yarexgen
 	testMatchStrings(t, pattern, []string{
@@ -193,5 +217,16 @@ func TestMatchClass(t *testing.T) {
 		"FOO bar",
 		"FOObar",
 		"fooBARbaz",
+	})
+}
+
+func TestSipAddress(t *testing.T) {
+	pattern := `^["]{0,1}([^"]*)["]{0,1}[ ]*<(sip|tel|sips):(([^@]*)@){0,1}([^>^:]*|\[[a-fA-F0-9:]*\]):{0,1}([0-9]*){0,1}>(;.*){0,1}$` //yarexgen
+	testMatchStrings(t, pattern, []string{
+		"\"display_name\"<sip:0312341234@10.0.0.1:5060>;user=phone;hogehoge",
+		"<sip:0312341234@10.0.0.1>",
+		"\"display_name\"<sip:0312341234@10.0.0.1>",
+		"<sip:whois.this>;user=phone",
+		"\"0333334444\"<sip:[2001:30:fe::4:123]>;user=phone",
 	})
 }
