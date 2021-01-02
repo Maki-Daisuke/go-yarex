@@ -122,7 +122,9 @@ func (gg *GoGenerator) generateFunc(re string, ast Ast) *codeFragments {
 	gg.useCharClass = false
 	follower := gg.generateAst(funcID, ast, &codeFragments{0, fmt.Sprintf(`
 			c := ctx.With(yarex.ContextKey{'c', 0}, p)
-			onSuccess(&c)
+			// Here, we need to convert 'c' to uintptr to avoid heap-allocation.
+			p := uintptr(unsafe.Pointer(&c))
+			onSuccess((*yarex.MatchContext)(unsafe.Pointer(p)))
 			return true
 		default:
 			// This should not happen.
