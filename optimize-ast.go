@@ -137,3 +137,35 @@ func canOnlyMatchAtBegining(re Ast) bool {
 		return false
 	}
 }
+
+func minRequiredLengthOfAst(re Ast) int {
+	switch v := re.(type) {
+	case AstAssertBegin, AstAssertEnd, AstBackRef:
+		return 0
+	case AstNotNewline, AstCharClass:
+		return 1
+	case AstLit:
+		return len(string(v))
+	case *AstSeq:
+		acc := 0
+		for _, r := range v.seq {
+			acc += minRequiredLengthOfAst(r)
+		}
+		return acc
+	case *AstAlt:
+		min := minRequiredLengthOfAst(v.opts[0])
+		for _, r := range v.opts[1:] {
+			m := minRequiredLengthOfAst(r)
+			if m < min {
+				min = m
+			}
+		}
+		return min
+	case *AstRepeat:
+		return minRequiredLengthOfAst(v.re) * v.min
+	case *AstCap:
+		return minRequiredLengthOfAst(v.re)
+	default:
+		panic(fmt.Errorf("IMPLEMENT optimizeAstFlattenSeqAndAlt for %T", re))
+	}
+}

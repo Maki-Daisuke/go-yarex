@@ -28,7 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	generator := yarex.NewGoGenerator(file.Name.Name)
+	generator := yarex.NewGoGenerator(filename, file.Name.Name)
 LOOP:
 	for n, cg := range ast.NewCommentMap(fset, file, file.Comments) {
 		for _, c := range cg {

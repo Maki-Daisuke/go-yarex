@@ -3,20 +3,11 @@ package yarex
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 )
 
-const (
-	funcName      = "yarexCompiledRegex"
-	charClassName = "yarexCompiledCharClass"
-)
-
-type funcResult struct {
-	id       string
-	headOnly bool
-	minReq   int
-	code     *codeFragments
-}
+var reNotWord = regexp.MustCompile(`\W`)
 
 type charClassResult struct {
 	id   string
@@ -27,17 +18,19 @@ type GoGenerator struct {
 	pkgname      string
 	useUtf8      bool
 	stateCount   uint
-	varCount     uint
+	idPrefix     string
+	idCount      uint
 	repeatCount  uint
-	funcs        map[string]funcResult
+	funcs        map[string]*codeFragments
 	charClasses  map[string]charClassResult
 	useCharClass bool
 }
 
-func NewGoGenerator(pkg string) *GoGenerator {
+func NewGoGenerator(file string, pkg string) *GoGenerator {
 	gg := &GoGenerator{}
 	gg.pkgname = pkg
-	gg.funcs = map[string]funcResult{}
+	gg.idPrefix = fmt.Sprintf("yarexGen_%s", reNotWord.ReplaceAllString(file, "_"))
+	gg.funcs = map[string]*codeFragments{}
 	gg.charClasses = map[string]charClassResult{}
 	return gg
 }
@@ -52,9 +45,8 @@ func (gg *GoGenerator) Add(rs ...string) error {
 			return err
 		}
 		ast = optimizeAst(ast)
-		id := fmt.Sprintf("%s%d", funcName, gg.newVar())
-		code := gg.generateFunc(id, ast)
-		gg.funcs[r] = funcResult{id, canOnlyMatchAtBegining(ast), code.minReq, code}
+		code := gg.generateFunc(r, ast)
+		gg.funcs[r] = code
 	}
 	return nil
 }
@@ -68,11 +60,12 @@ func (gg *GoGenerator) WriteTo(w io.Writer) (int64, error) {
 	n, err := fmt.Fprintf(w, `package %s
 
 	import (
-		"fmt"
+		"strconv"
 		"unsafe"
 		%s
 		"github.com/Maki-Daisuke/go-yarex"
 	)
+
 	`, gg.pkgname, importUtf8)
 	acc += int64(n)
 	if err != nil {
@@ -98,31 +91,11 @@ func (gg *GoGenerator) WriteTo(w io.Writer) (int64, error) {
 	}
 
 	for _, f := range gg.funcs {
-		n, err := f.code.WriteTo(w)
+		n, err := f.WriteTo(w)
 		acc += n
 		if err != nil {
 			return acc, err
 		}
-	}
-
-	n, err = io.WriteString(w, "func init(){\n")
-	acc += int64(n)
-	if err != nil {
-		return acc, err
-	}
-
-	for r, f := range gg.funcs {
-		n, err = fmt.Fprintf(w, "\tyarex.RegisterCompiledRegexp(%q, %t, %d, %s)\n", r, f.headOnly, f.minReq, f.id)
-		acc += int64(n)
-		if err != nil {
-			return acc, err
-		}
-	}
-
-	n, err = io.WriteString(w, "}\n")
-	acc += int64(n)
-	if err != nil {
-		return acc, err
 	}
 
 	return acc, nil
@@ -133,9 +106,9 @@ func (gg *GoGenerator) newState() uint {
 	return gg.stateCount
 }
 
-func (gg *GoGenerator) newVar() uint {
-	gg.varCount++
-	return gg.varCount
+func (gg *GoGenerator) newId() string {
+	gg.idCount++
+	return fmt.Sprintf("%s%d", gg.idPrefix, gg.idCount)
 }
 
 func (gg *GoGenerator) newRepeatID() uint {
@@ -143,19 +116,22 @@ func (gg *GoGenerator) newRepeatID() uint {
 	return gg.repeatCount
 }
 
-func (gg *GoGenerator) generateFunc(funcID string, re Ast) *codeFragments {
+func (gg *GoGenerator) generateFunc(re string, ast Ast) *codeFragments {
+	funcID := gg.newId()
+	gg.stateCount = 0
 	gg.useCharClass = false
-	follower := gg.generateAst(funcID, re, &codeFragments{0, `
+	follower := gg.generateAst(funcID, ast, &codeFragments{0, fmt.Sprintf(`
 			c := ctx.With(yarex.ContextKey{'c', 0}, p)
 			onSuccess(&c)
 			return true
 		default:
 			// This should not happen.
-			panic(fmt.Errorf("state%d is not defined", state))
+			panic("state" + strconv.Itoa(state) + "is not defined")
 		}
 	}
 }
-	`, nil})
+var _ = yarex.RegisterCompiledRegexp(%q, %t, %d, %s)
+	`, re, canOnlyMatchAtBegining(ast), minRequiredLengthOfAst(ast), funcID), nil})
 
 	varDecl := ""
 	if gg.useCharClass {
@@ -411,7 +387,7 @@ func (gg *GoGenerator) generateCharClass(ptn string, c CharClass, follower *code
 	if r, ok := gg.charClasses[ptn]; ok {
 		id = r.id
 	} else {
-		id = fmt.Sprintf("%s%d", charClassName, gg.newVar())
+		id = gg.newId()
 		gg.charClasses[ptn] = charClassResult{
 			id:   id,
 			code: gg.generateCharClassAux(c, nil),

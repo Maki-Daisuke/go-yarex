@@ -4,8 +4,9 @@ import "unsafe"
 
 var compiledRegexps = map[string]*Regexp{}
 
-func RegisterCompiledRegexp(s string, h bool, m int, f func(int, uintptr, int, func(*MatchContext)) bool) {
+func RegisterCompiledRegexp(s string, h bool, m int, f func(int, uintptr, int, func(*MatchContext)) bool) bool {
 	compiledRegexps[s] = &Regexp{s, &compiledExecer{f, h, m}}
+	return true
 }
 
 type compiledExecer struct {
