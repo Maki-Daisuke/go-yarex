@@ -3,10 +3,18 @@ package yarex
 import (
 	"strings"
 	"unicode/utf8"
+	"unsafe"
 )
 
 func astMatch(re Ast, s string) bool {
-	c0 := makeContext(s)
+	stack := make([]stackFrame, initialStackSize, initialStackSize) // We need to make stack here, instead of inside makeContext, since matchContext only contains uintptr to stack. GC does not count it as a valid reference.
+	getStack := func() []stackFrame {
+		return stack
+	}
+	setStack := func(s []stackFrame) {
+		stack = s
+	}
+	c0 := makeContext(&s, &getStack, &setStack)
 	if re.match(c0.push(0, 0), 0, func(c matchContext, _ int) *matchContext { return &c }) != nil {
 		return true
 	}
@@ -22,7 +30,7 @@ func astMatch(re Ast, s string) bool {
 }
 
 func (re AstLit) match(c matchContext, p int, k Continuation) *matchContext {
-	str := c.str
+	str := *(*string)(unsafe.Pointer(c.str))
 	lit := string(re)
 	if !strings.HasPrefix(str[p:], lit) {
 		return nil
@@ -31,7 +39,7 @@ func (re AstLit) match(c matchContext, p int, k Continuation) *matchContext {
 }
 
 func (re AstNotNewline) match(c matchContext, p int, k Continuation) *matchContext {
-	str := c.str
+	str := *(*string)(unsafe.Pointer(c.str))
 	if !(p < len(str)) || str[0] == '\n' {
 		return nil
 	}
@@ -62,7 +70,7 @@ func (r *AstAlt) match(c matchContext, p int, k Continuation) *matchContext {
 }
 
 func (r *AstRepeat) match(c matchContext, p int, k Continuation) *matchContext {
-	str := c.str
+	str := *(*string)(unsafe.Pointer(c.str))
 	switch re := r.re.(type) {
 	case AstLit:
 		s := string(re)
@@ -177,7 +185,7 @@ func (re AstAssertBegin) match(c matchContext, p int, k Continuation) *matchCont
 }
 
 func (re AstAssertEnd) match(c matchContext, p int, k Continuation) *matchContext {
-	str := c.str
+	str := *(*string)(unsafe.Pointer(c.str))
 	if p != len(str) {
 		return nil
 	}
@@ -185,7 +193,7 @@ func (re AstAssertEnd) match(c matchContext, p int, k Continuation) *matchContex
 }
 
 func (re AstCharClass) match(c matchContext, p int, k Continuation) *matchContext {
-	str := c.str
+	str := *(*string)(unsafe.Pointer(c.str))
 	if len(str) < p+1 {
 		return nil
 	}
