@@ -3,28 +3,26 @@ package yarex
 import (
 	"strings"
 	"unicode/utf8"
-	"unsafe"
 )
 
 func astMatch(re Ast, s string) bool {
-	c := matchContext{nil, 0, 0, s}
-	if re.match(uintptr(unsafe.Pointer(&c)), 0, func(c uintptr, _ int) *matchContext { return (*matchContext)(unsafe.Pointer(c)) }) != nil {
+	c0 := makeContext(s)
+	if re.match(c0.push(0, 0), 0, func(c matchContext, _ int) *matchContext { return &c }) != nil {
 		return true
 	}
 	if canOnlyMatchAtBegining(re) {
 		return false
 	}
 	for i := 1; i < len(s); i++ {
-		c.pos = i
-		if re.match(uintptr(unsafe.Pointer(&c)), i, func(c uintptr, _ int) *matchContext { return (*matchContext)(unsafe.Pointer(c)) }) != nil {
+		if re.match(c0.push(0, i), i, func(c matchContext, _ int) *matchContext { return &c }) != nil {
 			return true
 		}
 	}
 	return false
 }
 
-func (re AstLit) match(c uintptr, p int, k Continuation) *matchContext {
-	str := (*matchContext)(unsafe.Pointer(c)).str
+func (re AstLit) match(c matchContext, p int, k Continuation) *matchContext {
+	str := c.str
 	lit := string(re)
 	if !strings.HasPrefix(str[p:], lit) {
 		return nil
@@ -32,19 +30,19 @@ func (re AstLit) match(c uintptr, p int, k Continuation) *matchContext {
 	return k(c, p+len(lit))
 }
 
-func (re AstNotNewline) match(c uintptr, p int, k Continuation) *matchContext {
-	str := (*matchContext)(unsafe.Pointer(c)).str
+func (re AstNotNewline) match(c matchContext, p int, k Continuation) *matchContext {
+	str := c.str
 	if !(p < len(str)) || str[0] == '\n' {
 		return nil
 	}
 	return k(c, p+1)
 }
 
-func (r *AstSeq) match(c uintptr, p int, k Continuation) *matchContext {
+func (r *AstSeq) match(c matchContext, p int, k Continuation) *matchContext {
 	seq := r.seq
 	var loop func(int) Continuation
-	loop = func(i int) func(c uintptr, p int) *matchContext {
-		return func(c uintptr, p int) *matchContext {
+	loop = func(i int) func(c matchContext, p int) *matchContext {
+		return func(c matchContext, p int) *matchContext {
 			if i < len(seq) {
 				return seq[i].match(c, p, loop(i+1))
 			}
@@ -54,7 +52,7 @@ func (r *AstSeq) match(c uintptr, p int, k Continuation) *matchContext {
 	return loop(0)(c, p)
 }
 
-func (r *AstAlt) match(c uintptr, p int, k Continuation) *matchContext {
+func (r *AstAlt) match(c matchContext, p int, k Continuation) *matchContext {
 	for _, re := range r.opts {
 		if c1 := re.match(c, p, k); c1 != nil {
 			return c1
@@ -63,8 +61,8 @@ func (r *AstAlt) match(c uintptr, p int, k Continuation) *matchContext {
 	return nil
 }
 
-func (r *AstRepeat) match(c uintptr, p int, k Continuation) *matchContext {
-	str := (*matchContext)(unsafe.Pointer(c)).str
+func (r *AstRepeat) match(c matchContext, p int, k Continuation) *matchContext {
+	str := c.str
 	switch re := r.re.(type) {
 	case AstLit:
 		s := string(re)
@@ -133,7 +131,7 @@ func (r *AstRepeat) match(c uintptr, p int, k Continuation) *matchContext {
 		prev := -1 // initial value must be a number which never equal to any position (i.e. positive integer)
 		var loop func(count int) Continuation
 		loop = func(count int) Continuation {
-			return func(c uintptr, p int) *matchContext {
+			return func(c matchContext, p int) *matchContext {
 				if prev == p { // Matched zero-length assertion. So, move ahead the next pattern.
 					return k(c, p)
 				}
@@ -155,42 +153,39 @@ func (r *AstRepeat) match(c uintptr, p int, k Continuation) *matchContext {
 	}
 }
 
-func (r *AstCap) match(c uintptr, p int, k Continuation) *matchContext {
-	ctx := (*matchContext)(unsafe.Pointer(c))
-	ctx = ctx.with(r.index, p)
-	return r.re.match(uintptr(unsafe.Pointer(ctx)), p, func(c uintptr, p1 int) *matchContext {
-		ctx := (*matchContext)(unsafe.Pointer(c))
-		ctx = ctx.with(r.index, p1)
-		return k(uintptr(unsafe.Pointer(ctx)), p1)
+func (r *AstCap) match(c matchContext, p int, k Continuation) *matchContext {
+	c = c.push(r.index, p)
+	return r.re.match(c, p, func(c matchContext, p1 int) *matchContext {
+		c = c.push(r.index, p1)
+		return k(c, p1)
 	})
 }
 
-func (r AstBackRef) match(c uintptr, p int, k Continuation) *matchContext {
-	ctx := (*matchContext)(unsafe.Pointer(c))
-	cap, ok := (ctx).GetCaptured(uint(r))
+func (r AstBackRef) match(c matchContext, p int, k Continuation) *matchContext {
+	cap, ok := c.GetCaptured(uint(r))
 	if !ok {
 		return nil
 	}
 	return AstLit(cap).match(c, p, k)
 }
 
-func (re AstAssertBegin) match(c uintptr, p int, k Continuation) *matchContext {
+func (re AstAssertBegin) match(c matchContext, p int, k Continuation) *matchContext {
 	if p != 0 {
 		return nil
 	}
 	return k(c, p)
 }
 
-func (re AstAssertEnd) match(c uintptr, p int, k Continuation) *matchContext {
-	str := (*matchContext)(unsafe.Pointer(c)).str
+func (re AstAssertEnd) match(c matchContext, p int, k Continuation) *matchContext {
+	str := c.str
 	if p != len(str) {
 		return nil
 	}
 	return k(c, p)
 }
 
-func (re AstCharClass) match(c uintptr, p int, k Continuation) *matchContext {
-	str := (*matchContext)(unsafe.Pointer(c)).str
+func (re AstCharClass) match(c matchContext, p int, k Continuation) *matchContext {
+	str := c.str
 	if len(str) < p+1 {
 		return nil
 	}

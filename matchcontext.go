@@ -15,42 +15,60 @@ package yarex
 //
 // This means, captured string by the first "()" is indexed as str[2:5] and
 // whole matched string is indexed as str[1:9].
-type matchContext struct {
-	parent *matchContext
-	index  uint
-	pos    int
-	str    string
+
+const initialStackSize = 128
+
+type stackFrame struct {
+	index uint
+	pos   int
 }
 
-func (c *matchContext) with(i uint, p int) *matchContext {
-	return &matchContext{c, i, p, c.str}
+type matchContext struct {
+	str      string       // string being matched
+	stack    []stackFrame // stack to record capturing position, etc.
+	stackTop int          // stack top
+}
+
+func makeContext(s string) matchContext {
+	return matchContext{s, make([]stackFrame, initialStackSize, initialStackSize), 0}
+}
+
+func (c matchContext) push(i uint, p int) matchContext {
+	st := c.stack
+	sf := stackFrame{i, p}
+	if len(st) <= c.stackTop {
+		st = append(st, sf)
+	} else {
+		st[c.stackTop] = sf
+	}
+	return matchContext{c.str, st, c.stackTop + 1}
 }
 
 // GetOffset returns (-1, -1) when it cannot find specified index.
-func (c *matchContext) GetOffset(i uint) (start int, end int) {
-	for ; ; c = c.parent {
-		if c == nil {
+func (c matchContext) GetOffset(idx uint) (start int, end int) {
+	st := c.stack
+	i := c.stackTop - 1
+	for ; ; i-- {
+		if i == 0 {
 			return -1, -1
 		}
-		if c.index == i {
-			end = c.pos
+		if st[i].index == idx {
+			end = st[i].pos
 			break
 		}
 	}
-	c = c.parent
-	for ; ; c = c.parent {
-		if c == nil {
-			// This should not happen.
-			panic("Undetermined capture")
-		}
-		if c.index == i {
-			start = c.pos
+	i--
+	for ; i >= 0; i-- {
+		if st[i].index == idx {
+			start = st[i].pos
 			return
 		}
 	}
+	// This should not happen.
+	panic("Undetermined capture")
 }
 
-func (c *matchContext) GetCaptured(i uint) (string, bool) {
+func (c matchContext) GetCaptured(i uint) (string, bool) {
 	start, end := c.GetOffset(i)
 	if start < 0 {
 		return "", false
