@@ -3,6 +3,7 @@ package yarex
 import (
 	"strings"
 	"unicode/utf8"
+	"unsafe"
 )
 
 type opExecer struct {
@@ -22,7 +23,7 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(MatchContext)) bool 
 	stack := make([]opStackFrame, initialStackSize, initialStackSize)
 	getter := func() []opStackFrame { return stack }
 	setter := func(s []opStackFrame) { stack = s }
-	ctx0 := makeOpMatchContext(str, getter, setter)
+	ctx0 := makeOpMatchContext(&str, &getter, &setter)
 	if opTreeExec(op, ctx0.Push(ContextKey{'c', 0}, 0), pos, onSuccess) {
 		return true
 	}
@@ -38,7 +39,7 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(MatchContext)) bool 
 }
 
 func opTreeExec(next OpTree, ctx MatchContext, p int, onSuccess func(MatchContext)) bool {
-	str := ctx.Str
+	str := *(*string)(unsafe.Pointer(ctx.Str))
 	for {
 		switch op := next.(type) {
 		case OpSuccess:

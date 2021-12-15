@@ -25,7 +25,7 @@ func (exe *compiledExecer) exec(str string, pos int, onSuccess func(MatchContext
 	stack := make([]opStackFrame, initialStackSize, initialStackSize)
 	getter := func() []opStackFrame { return stack }
 	setter := func(s []opStackFrame) { stack = s }
-	ctx0 := makeOpMatchContext(str, getter, setter)
+	ctx0 := makeOpMatchContext(&str, &getter, &setter)
 	if exe.fun(0, ctx0.Push(ContextKey{'c', 0}, pos), pos, onSuccess) {
 		return true
 	}

@@ -1,5 +1,7 @@
 package yarex
 
+import "unsafe"
+
 type ContextKey struct {
 	Kind  rune
 	Index uint
@@ -11,22 +13,23 @@ type opStackFrame struct {
 }
 
 type MatchContext struct {
-	Str      string
-	getStack func() []opStackFrame
-	setStack func([]opStackFrame)
-	stackTop int
+	Str      uintptr // *string                // string being matched
+	getStack uintptr // *func() []opStackFrame // Accessors to stack to record capturing positions.
+	setStack uintptr // *func([]opStackFrame)  // We use uintptr to avoid leaking param.
+	stackTop int     // stack top
 }
 
-func makeOpMatchContext(str string, getter func() []opStackFrame, setter func([]opStackFrame)) MatchContext {
-	return MatchContext{str, getter, setter, 0}
+func makeOpMatchContext(str *string, getter *func() []opStackFrame, setter *func([]opStackFrame)) MatchContext {
+	return MatchContext{uintptr(unsafe.Pointer(str)), uintptr(unsafe.Pointer(getter)), uintptr(unsafe.Pointer(setter)), 0}
 }
 
 func (c MatchContext) Push(k ContextKey, p int) MatchContext {
-	st := c.getStack()
+	st := (*(*func() []opStackFrame)(unsafe.Pointer(c.getStack)))() // c.getStack()
 	sf := opStackFrame{k, p}
 	if len(st) <= c.stackTop {
 		st = append(st, sf)
-		c.setStack(st)
+		st = st[:cap(st)]
+		(*(*func([]opStackFrame))(unsafe.Pointer(c.setStack)))(st) // c.setStack(st)
 	} else {
 		st[c.stackTop] = sf
 	}
@@ -36,7 +39,7 @@ func (c MatchContext) Push(k ContextKey, p int) MatchContext {
 
 func (c MatchContext) GetCaptured(k ContextKey) (string, bool) {
 	var start, end int
-	st := c.getStack()
+	st := (*(*func() []opStackFrame)(unsafe.Pointer(c.getStack)))() // c.getStack()
 	i := c.stackTop - 1
 	for ; ; i-- {
 		if i == 0 {
@@ -51,7 +54,8 @@ func (c MatchContext) GetCaptured(k ContextKey) (string, bool) {
 	for ; i >= 0; i-- {
 		if st[i].Key == k {
 			start = st[i].Pos
-			return c.Str[start:end], true
+			str := *(*string)(unsafe.Pointer(c.Str))
+			return str[start:end], true
 		}
 	}
 	// This should not happen.
@@ -59,7 +63,7 @@ func (c MatchContext) GetCaptured(k ContextKey) (string, bool) {
 }
 
 func (c MatchContext) FindVal(k ContextKey) int {
-	st := c.getStack()
+	st := (*(*func() []opStackFrame)(unsafe.Pointer(c.getStack)))() // c.getStack()
 	for i := c.stackTop - 1; i >= 0; i-- {
 		if st[i].Key == k {
 			return st[i].Pos
