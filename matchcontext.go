@@ -2,7 +2,7 @@ package yarex
 
 import "unsafe"
 
-const initialStackSize = 16
+const initialStackSize = 64
 
 type stackFrame struct {
 	index uint
