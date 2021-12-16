@@ -1,5 +1,16 @@
 package yarex
 
+import "sync"
+
+// IntStackPool is accessed by compiled matchers to reuse int stacks.
+// Do not use this for any other purposes.
+var IntStackPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]int, 256)
+		return &b
+	},
+}
+
 var compiledRegexps = map[string]*Regexp{}
 
 func RegisterCompiledRegexp(s string, h bool, m int, f func(int, MatchContext, int, func(MatchContext)) bool) bool {

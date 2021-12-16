@@ -3,6 +3,7 @@ package yarex
 import (
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"strings"
 )
@@ -278,6 +279,10 @@ func (gg *GoGenerator) generateAlt(funcID string, opts []Ast, follower *codeFrag
 }
 
 func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follower *codeFragments) *codeFragments {
+	switch r := re.(type) {
+	case AstCharClass:
+		return gg.generateRepeatCharClass(funcID, r, min, max, follower)
+	}
 	if min > 0 {
 		return gg.generateAst(funcID, re, gg.generateRepeat(funcID, re, min-1, max-1, follower))
 	}
@@ -343,6 +348,48 @@ func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follo
 		fallthrough
 	case %d:
 	`, startState))
+}
+
+func (gg *GoGenerator) generateRepeatCharClass(funcID string, re AstCharClass, min, max int, follower *codeFragments) *codeFragments {
+	gg.generateCharClass(re.str, re.CharClass, follower) // Compile and register CharClass
+	ccId := gg.charClasses[re.str].id                    // Get CharClass's identifier
+	followerState := gg.newState()
+	if max < 0 {
+		max = math.MaxInt
+	}
+	return follower.prepend(fmt.Sprintf(`
+		stack := (yarex.IntStackPool.Get().(*[]int))
+		endPos := len(str) - %d
+		n := 0
+		for n < %d && p < endPos {
+			r, size = utf8.DecodeRuneInString(str[p:])
+			if size == 0 || r == utf8.RuneError {
+				break
+			}
+			if !%s.Contains(r) {
+				break
+			}
+			if len(*stack) == n {
+				*stack = append(*stack, p)
+				*stack = (*stack)[:cap(*stack)]
+			} else {
+				(*stack)[n] = p
+			}
+			n++
+			p += size
+		}
+		for n > %d {  // try backtrack
+			if %s(%d, ctx, p, onSuccess) {
+				yarex.IntStackPool.Put(stack)
+				return true
+			}
+			n--
+			p = (*stack)[n]
+		}
+		yarex.IntStackPool.Put(stack)
+		fallthrough
+	case %d:
+	`, follower.minReq, max, ccId, min, funcID, followerState, followerState))
 }
 
 func (gg *GoGenerator) compileCapture(funcID string, re Ast, index uint, follower *codeFragments) *codeFragments {
