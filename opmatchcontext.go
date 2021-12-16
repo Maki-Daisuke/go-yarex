@@ -1,6 +1,9 @@
 package yarex
 
-import "unsafe"
+import (
+	"sync"
+	"unsafe"
+)
 
 type ContextKey struct {
 	Kind  rune
@@ -10,6 +13,13 @@ type ContextKey struct {
 type opStackFrame struct {
 	Key ContextKey
 	Pos int
+}
+
+var opStackPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]opStackFrame, initialStackSize)
+		return &b
+	},
 }
 
 type MatchContext struct {

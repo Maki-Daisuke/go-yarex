@@ -22,7 +22,8 @@ func (exe *compiledExecer) exec(str string, pos int, onSuccess func(MatchContext
 	if minReq > len(str)-pos {
 		return false
 	}
-	stack := make([]opStackFrame, initialStackSize, initialStackSize)
+	stack := *(opStackPool.Get().(*[]opStackFrame))
+	defer func() { opStackPool.Put(&stack) }()
 	getter := func() []opStackFrame { return stack }
 	setter := func(s []opStackFrame) { stack = s }
 	ctx0 := makeOpMatchContext(&str, &getter, &setter)
