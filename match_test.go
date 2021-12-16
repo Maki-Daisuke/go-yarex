@@ -1,6 +1,7 @@
 package yarex
 
 import (
+	"regexp"
 	"testing"
 )
 
@@ -11,9 +12,9 @@ func testMatchStrings(t *testing.T, restr string, tests []string) {
 	}
 	ast = optimizeAst(ast)
 	yaRe := MustCompileOp(restr)
-	//goRe := regexp.MustCompile(restr)
+	goRe := regexp.MustCompile(restr)
 	for _, str := range tests {
-		match := yaRe.MatchString(str)
+		match := goRe.MatchString(str)
 		if astMatch(ast, str) != match {
 			if match {
 				t.Errorf("(Interp) %v should match against %q, but didn't", ast, str)
@@ -21,21 +22,13 @@ func testMatchStrings(t *testing.T, restr string, tests []string) {
 				t.Errorf("(Interp) %v shouldn't match against %q, but did", ast, str)
 			}
 		}
-		// match := goRe.MatchString(str)
-		// if astMatch(ast, str) != match {
-		// 	if match {
-		// 		t.Errorf("(Interp) %v should match against %q, but didn't", ast, str)
-		// 	} else {
-		// 		t.Errorf("(Interp) %v shouldn't match against %q, but did", ast, str)
-		// 	}
-		// }
-		// if yaRe.MatchString(str) != match {
-		// 	if match {
-		// 		t.Errorf("(OpTree) %v should match against %q, but didn't", yaRe, str)
-		// 	} else {
-		// 		t.Errorf("(OpTree) %v shouldn't match against %q, but did", yaRe, str)
-		// 	}
-		// }
+		if yaRe.MatchString(str) != match {
+			if match {
+				t.Errorf("(OpTree) %v should match against %q, but didn't", yaRe, str)
+			} else {
+				t.Errorf("(OpTree) %v shouldn't match against %q, but did", yaRe, str)
+			}
+		}
 	}
 }
 
