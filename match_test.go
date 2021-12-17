@@ -1,39 +1,55 @@
-package yarex
+package yarex_test
+
+//go:generate cmd/yarexgen/yarexgen match_test.go
 
 import (
 	"regexp"
 	"testing"
+
+	"github.com/Maki-Daisuke/go-yarex"
 )
 
 func testMatchStrings(t *testing.T, restr string, tests []string) {
-	ast, err := parse(restr)
+	ast, err := yarex.Parse(restr)
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
-	ast = optimizeAst(ast)
-	yaRe := MustCompileOp(restr)
-	goRe := regexp.MustCompile(restr)
+	stdRe := regexp.MustCompile(restr)
+	ast = yarex.OptimizeAst(ast)
+	opRe := yarex.MustCompileOp(restr)
+	compRe := yarex.MustCompile(restr)
+	if !yarex.IsCompiledMatcher(compRe) {
+		t.Errorf("%v should be Compiled matcher, but isn't", compRe)
+	}
 	for _, str := range tests {
-		match := goRe.MatchString(str)
-		if astMatch(ast, str) != match {
+		match := stdRe.MatchString(str)
+		if yarex.AstMatch(ast, str) != match {
 			if match {
 				t.Errorf("(Interp) %v should match against %q, but didn't", ast, str)
 			} else {
 				t.Errorf("(Interp) %v shouldn't match against %q, but did", ast, str)
 			}
 		}
-		if yaRe.MatchString(str) != match {
+		if opRe.MatchString(str) != match {
 			if match {
-				t.Errorf("(OpTree) %v should match against %q, but didn't", yaRe, str)
+				t.Errorf("(OpTree) %v should match against %q, but didn't", opRe, str)
 			} else {
-				t.Errorf("(OpTree) %v shouldn't match against %q, but did", yaRe, str)
+				t.Errorf("(OpTree) %v shouldn't match against %q, but did", opRe, str)
+			}
+		}
+		if compRe.MatchString(str) != match {
+			if match {
+				t.Errorf("(Compiled) %v should match against %q, but didn't", compRe, str)
+			} else {
+				t.Errorf("(Compiled) %v shouldn't match against %q, but did", compRe, str)
 			}
 		}
 	}
 }
 
 func TestMatchFooBar(t *testing.T) {
-	testMatchStrings(t, "foo bar", []string{
+	re := "foo bar" //yarexgen
+	testMatchStrings(t, re, []string{
 		"foo bar",
 		"foo  bar",
 		"hogefoo barfuga",
@@ -44,7 +60,8 @@ func TestMatchFooBar(t *testing.T) {
 }
 
 func TestMatchFooOrBar(t *testing.T) {
-	testMatchStrings(t, "foo|bar", []string{
+	re := "foo|bar" //yarexgen
+	testMatchStrings(t, re, []string{
 		"foo bar",
 		"hogefoo barfuga",
 		"foo baz",
@@ -55,7 +72,8 @@ func TestMatchFooOrBar(t *testing.T) {
 }
 
 func TestMatchBacktracking(t *testing.T) {
-	testMatchStrings(t, "(?:foo|fo)oh", []string{
+	re := "(?:foo|fo)oh" //yarexgen
+	testMatchStrings(t, re, []string{
 		"fooh",
 		"foooh",
 		"foh",
@@ -66,7 +84,8 @@ func TestMatchBacktracking(t *testing.T) {
 }
 
 func TestMatchZeroOrMore(t *testing.T) {
-	testMatchStrings(t, "fo*oh", []string{
+	re := "fo*oh" //yarexgen
+	testMatchStrings(t, re, []string{
 		"fooh",
 		"foh",
 		"fh",
@@ -79,7 +98,8 @@ func TestMatchZeroOrMore(t *testing.T) {
 }
 
 func TestMatchOneOrMore(t *testing.T) {
-	testMatchStrings(t, "fo+oh", []string{
+	re := "fo+oh" //yarexgen
+	testMatchStrings(t, re, []string{
 		"fooh",
 		"foh",
 		"fh",
@@ -92,7 +112,8 @@ func TestMatchOneOrMore(t *testing.T) {
 }
 
 func TestMatchQuantifier(t *testing.T) {
-	testMatchStrings(t, "fo{2,5}oh", []string{
+	re := "fo{2,5}oh" //yarexgen
+	testMatchStrings(t, re, []string{
 		"fooh",
 		"foh",
 		"fh",
@@ -105,7 +126,8 @@ func TestMatchQuantifier(t *testing.T) {
 }
 
 func TestMatchOpt(t *testing.T) {
-	testMatchStrings(t, "fo?oh", []string{
+	re := "fo?oh" //yarexgen
+	testMatchStrings(t, re, []string{
 		"fooh",
 		"foh",
 		"fh",
@@ -115,7 +137,8 @@ func TestMatchOpt(t *testing.T) {
 		"fo",
 		"oh",
 	})
-	testMatchStrings(t, "fo*oh?", []string{
+	re = "fo*oh?" //yarexgen
+	testMatchStrings(t, re, []string{
 		"ABfooh",
 		"foo",
 		"fh",
@@ -128,14 +151,16 @@ func TestMatchOpt(t *testing.T) {
 }
 
 func TestMatchWildcard(t *testing.T) {
-	testMatchStrings(t, ".", []string{
+	re := "." //yarexgen
+	testMatchStrings(t, re, []string{
 		"aiueo",
 		"\n",
 		"",
 		" ",
 		"\b",
 	})
-	testMatchStrings(t, ".+x", []string{
+	re = ".+x" //yarexgen
+	testMatchStrings(t, re, []string{
 		"",
 		"x",
 		"xx",
@@ -147,7 +172,8 @@ func TestMatchWildcard(t *testing.T) {
 }
 
 func TestMatchBegin(t *testing.T) {
-	testMatchStrings(t, "^foo bar", []string{
+	re := "^foo bar" //yarexgen
+	testMatchStrings(t, re, []string{
 		"foo bar",
 		"foo  bar",
 		"hogefoo barfuga",
@@ -156,7 +182,8 @@ func TestMatchBegin(t *testing.T) {
 		"foo ba",
 		"\nfoo bar",
 	})
-	testMatchStrings(t, "(^|A)*foo bar", []string{
+	re = "(^|A)*foo bar" //yarexgen
+	testMatchStrings(t, re, []string{
 		"foo bar",
 		"foo  bar",
 		"hogefoo barfuga",
@@ -181,33 +208,42 @@ func TestMatchBackRef(t *testing.T) {
 		{"hoge", false},
 		{"fuga", false},
 	}
-	pattern := `(hoge)\1fuga`
-	ast, err := parse(pattern)
+	pattern := `(hoge)\1fuga` //yarexgen
+	ast, err := yarex.Parse(pattern)
 	if err != nil {
 		t.Fatalf("want nil, but got %s", err)
 	}
-	ast = optimizeAst(ast)
-	yaRe := MustCompileOp(pattern)
+	ast = yarex.OptimizeAst(ast)
+	opRe := yarex.MustCompileOp(pattern)
+	compRe := yarex.MustCompileOp(pattern)
 	for _, test := range tests {
-		if astMatch(ast, test.str) != test.result {
+		if yarex.AstMatch(ast, test.str) != test.result {
 			if test.result {
 				t.Errorf("(Interp) %v should match against %q, but didn't", ast, test.str)
 			} else {
 				t.Errorf("(Interp) %v shouldn't match against %q, but did", ast, test.str)
 			}
 		}
-		if yaRe.MatchString(test.str) != test.result {
+		if opRe.MatchString(test.str) != test.result {
 			if test.result {
-				t.Errorf("(OpTree) %v should match against %q, but didn't", yaRe, test.str)
+				t.Errorf("(OpTree) %v should match against %q, but didn't", opRe, test.str)
 			} else {
-				t.Errorf("(OpTree) %v shouldn't match against %q, but did", yaRe, test.str)
+				t.Errorf("(OpTree) %v shouldn't match against %q, but did", opRe, test.str)
+			}
+		}
+		if compRe.MatchString(test.str) != test.result {
+			if test.result {
+				t.Errorf("(Compiled) %v should match against %q, but didn't", compRe, test.str)
+			} else {
+				t.Errorf("(Compiled) %v shouldn't match against %q, but did", compRe, test.str)
 			}
 		}
 	}
 }
 
 func TestMatchClass(t *testing.T) {
-	testMatchStrings(t, "[0aB]", []string{
+	re := "[0aB]" //yarexgen
+	testMatchStrings(t, re, []string{
 		"foo",      // false
 		"foo  bar", // true
 		"FOO BAR",  // true
@@ -216,7 +252,8 @@ func TestMatchClass(t *testing.T) {
 		"\000hoge", // false
 		"\000hage", // true
 	})
-	testMatchStrings(t, "[A-Z0-9][a-z]", []string{
+	re = "[A-Z0-9][a-z]" //yarexgen
+	testMatchStrings(t, re, []string{
 		"absksdjhasd",
 		"alsdAAA",
 		"asl;k3as7djj",
@@ -229,7 +266,8 @@ func TestMatchClass(t *testing.T) {
 }
 
 func TestSipAddress(t *testing.T) {
-	testMatchStrings(t, `^["]{0,1}([^"]*)["]{0,1}[ ]*<(sip|tel|sips):(([^@]*)@){0,1}([^>^:]*|\[[a-fA-F0-9:]*\]):{0,1}([0-9]*){0,1}>(;.*){0,1}$`, []string{
+	re := `^["]{0,1}([^"]*)["]{0,1}[ ]*<(sip|tel|sips):(([^@]*)@){0,1}([^>^:]*|\[[a-fA-F0-9:]*\]):{0,1}([0-9]*){0,1}>(;.*){0,1}$` //yarexgen
+	testMatchStrings(t, re, []string{
 		"\"display_name\"<sip:0312341234@10.0.0.1:5060>;user=phone;hogehoge",
 		"<sip:0312341234@10.0.0.1>",
 		"\"display_name\"<sip:0312341234@10.0.0.1>",

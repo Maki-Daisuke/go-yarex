@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+// Export private functions only for test
+var (
+	Parse       = parse
+	OptimizeAst = optimizeAst
+	AstMatch    = astMatch
+)
+
 // MustCompileOp is identical to MustCompile, but ignores compiled version of regexp
 // and returns OpTree version.
 func MustCompileOp(ptn string) *Regexp {
