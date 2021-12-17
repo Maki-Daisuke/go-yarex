@@ -3,7 +3,6 @@ package yarex
 import (
 	"fmt"
 	"io"
-	"math"
 	"regexp"
 	"strings"
 )
@@ -354,14 +353,15 @@ func (gg *GoGenerator) generateRepeatCharClass(funcID string, re AstCharClass, m
 	gg.generateCharClass(re.str, re.CharClass, follower) // Compile and register CharClass
 	ccId := gg.charClasses[re.str].id                    // Get CharClass's identifier
 	followerState := gg.newState()
-	if max < 0 {
-		max = math.MaxInt
+	maxCond := ""
+	if max >= 0 {
+		maxCond = fmt.Sprintf(`n < %d && `, max)
 	}
 	return follower.prepend(fmt.Sprintf(`
 		stack := (yarex.IntStackPool.Get().(*[]int))
 		endPos := len(str) - %d
 		n := 0
-		for n < %d && p < endPos {
+		for %s p < endPos {
 			r, size = utf8.DecodeRuneInString(str[p:])
 			if size == 0 || r == utf8.RuneError {
 				break
@@ -389,7 +389,7 @@ func (gg *GoGenerator) generateRepeatCharClass(funcID string, re AstCharClass, m
 		yarex.IntStackPool.Put(stack)
 		fallthrough
 	case %d:
-	`, follower.minReq, max, ccId, min, funcID, followerState, followerState))
+	`, follower.minReq, maxCond, ccId, min, funcID, followerState, followerState))
 }
 
 func (gg *GoGenerator) compileCapture(funcID string, re Ast, index uint, follower *codeFragments) *codeFragments {
