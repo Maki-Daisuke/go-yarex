@@ -393,19 +393,13 @@ func (gg *GoGenerator) generateRepeatCharClass(funcID string, re AstCharClass, m
 }
 
 func (gg *GoGenerator) compileCapture(funcID string, re Ast, index uint, follower *codeFragments) *codeFragments {
-	followerState := gg.newState()
 	follower = follower.prepend(fmt.Sprintf(`
-		ctx2 := ctx.Push(yarex.ContextKey{'c', %d}, p)
-		return %s(%d, ctx2, p, onSuccess)
-	case %d:
-	`, index, funcID, followerState, followerState))
+		ctx = ctx.Push(yarex.ContextKey{'c', %d}, p)
+	`, index))
 	follower = gg.generateAst(funcID, re, follower)
-	s := gg.newState()
 	return follower.prepend(fmt.Sprintf(`
-		ctx2 := ctx.Push(yarex.ContextKey{'c', %d}, p)
-		return %s(%d, ctx2, p, onSuccess)
-	case %d:
-	`, index, funcID, s, s))
+		ctx = ctx.Push(yarex.ContextKey{'c', %d}, p)
+	`, index))
 }
 
 func (gg *GoGenerator) compileBackRef(index uint, follower *codeFragments) *codeFragments {
