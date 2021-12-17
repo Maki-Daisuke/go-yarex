@@ -3,6 +3,7 @@ package yarex
 import (
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"strings"
 )
@@ -121,10 +122,7 @@ func (gg *GoGenerator) generateFunc(re string, ast Ast) *codeFragments {
 	gg.stateCount = 0
 	gg.useCharClass = false
 	follower := gg.generateAst(funcID, ast, &codeFragments{0, fmt.Sprintf(`
-			c := ctx.With(yarex.ContextKey{'c', 0}, p)
-			// Here, we need to convert 'c' to uintptr to avoid heap-allocation.
-			p := uintptr(unsafe.Pointer(&c))
-			onSuccess((*yarex.MatchContext)(unsafe.Pointer(p)))
+			onSuccess(ctx.Push(yarex.ContextKey{'c', 0}, p))
 			return true
 		default:
 			// This should not happen.
@@ -146,10 +144,9 @@ var _ = yarex.RegisterCompiledRegexp(%q, %t, %d, %s)
 	}
 
 	return follower.prepend(fmt.Sprintf(`
-func %s (state int, c uintptr, p int, onSuccess func(*yarex.MatchContext)) bool {
+func %s (state int, ctx yarex.MatchContext, p int, onSuccess func(yarex.MatchContext)) bool {
 	%s
-	ctx := (*yarex.MatchContext)(unsafe.Pointer(c))
-	str := ctx.Str
+	str := *(*string)(unsafe.Pointer(ctx.Str))
 	for{
 		switch state {
 		case 0:
@@ -269,7 +266,7 @@ func (gg *GoGenerator) generateAlt(funcID string, opts []Ast, follower *codeFrag
 
 	tries := make([]string, len(states))
 	for i, s := range states {
-		tries[i] = fmt.Sprintf(`%s(%d, c, p, onSuccess)`, funcID, s)
+		tries[i] = fmt.Sprintf(`%s(%d, ctx, p, onSuccess)`, funcID, s)
 	}
 	follower = follower.prepend(fmt.Sprintf(`
 		if %s {
@@ -282,6 +279,10 @@ func (gg *GoGenerator) generateAlt(funcID string, opts []Ast, follower *codeFrag
 }
 
 func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follower *codeFragments) *codeFragments {
+	switch r := re.(type) {
+	case AstCharClass:
+		return gg.generateRepeatCharClass(funcID, r, min, max, follower)
+	}
 	if min > 0 {
 		return gg.generateAst(funcID, re, gg.generateRepeat(funcID, re, min-1, max-1, follower))
 	}
@@ -299,7 +300,7 @@ func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follo
 		follower = gg.generateAst(funcID, re, follower)
 		altState := gg.newState()
 		follower = follower.prepend(fmt.Sprintf(`
-			if %s(%d, c, p, onSuccess) {
+			if %s(%d, ctx, p, onSuccess) {
 				return true
 			}
 			state = %d
@@ -326,8 +327,8 @@ func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follo
 				state = %d // So, terminate repeating.
 				continue
 			}
-			ctx2 := ctx.With(yarex.ContextKey{'r', %d}, p)
-			if %s(%d, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess) {
+			ctx2 := ctx.Push(yarex.ContextKey{'r', %d}, p)
+			if %s(%d, ctx2, p, onSuccess) {
 				return true
 			}
 			state = %d
@@ -335,7 +336,7 @@ func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follo
 		`, repeatID, followerState, repeatID, funcID, repeatState, followerState, repeatState))
 	} else { // We can skip zero-width check for optimization
 		follower = follower.prepend(fmt.Sprintf(`
-			if %s(%d, c, p, onSuccess) {
+			if %s(%d, ctx, p, onSuccess) {
 				return true
 			}
 			state = %d
@@ -349,18 +350,60 @@ func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follo
 	`, startState))
 }
 
+func (gg *GoGenerator) generateRepeatCharClass(funcID string, re AstCharClass, min, max int, follower *codeFragments) *codeFragments {
+	gg.generateCharClass(re.str, re.CharClass, follower) // Compile and register CharClass
+	ccId := gg.charClasses[re.str].id                    // Get CharClass's identifier
+	followerState := gg.newState()
+	if max < 0 {
+		max = math.MaxInt
+	}
+	return follower.prepend(fmt.Sprintf(`
+		stack := (yarex.IntStackPool.Get().(*[]int))
+		endPos := len(str) - %d
+		n := 0
+		for n < %d && p < endPos {
+			r, size = utf8.DecodeRuneInString(str[p:])
+			if size == 0 || r == utf8.RuneError {
+				break
+			}
+			if !%s.Contains(r) {
+				break
+			}
+			if len(*stack) == n {
+				*stack = append(*stack, p)
+				*stack = (*stack)[:cap(*stack)]
+			} else {
+				(*stack)[n] = p
+			}
+			n++
+			p += size
+		}
+		for n > %d {  // try backtrack
+			if %s(%d, ctx, p, onSuccess) {
+				yarex.IntStackPool.Put(stack)
+				return true
+			}
+			n--
+			p = (*stack)[n]
+		}
+		yarex.IntStackPool.Put(stack)
+		fallthrough
+	case %d:
+	`, follower.minReq, max, ccId, min, funcID, followerState, followerState))
+}
+
 func (gg *GoGenerator) compileCapture(funcID string, re Ast, index uint, follower *codeFragments) *codeFragments {
 	followerState := gg.newState()
 	follower = follower.prepend(fmt.Sprintf(`
-		ctx2 := ctx.With(yarex.ContextKey{'c', %d}, p)
-		return %s(%d, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
+		ctx2 := ctx.Push(yarex.ContextKey{'c', %d}, p)
+		return %s(%d, ctx2, p, onSuccess)
 	case %d:
 	`, index, funcID, followerState, followerState))
 	follower = gg.generateAst(funcID, re, follower)
 	s := gg.newState()
 	return follower.prepend(fmt.Sprintf(`
-		ctx2 := ctx.With(yarex.ContextKey{'c', %d}, p)
-		return %s(%d, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
+		ctx2 := ctx.Push(yarex.ContextKey{'c', %d}, p)
+		return %s(%d, ctx2, p, onSuccess)
 	case %d:
 	`, index, funcID, s, s))
 }

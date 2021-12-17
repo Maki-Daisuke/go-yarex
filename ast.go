@@ -7,12 +7,12 @@ import (
 
 // Here, we use uintpointer to pass *matchContext
 // to avoid from allocating the parameter in heap
-type Continuation = func(uintptr, int) *matchContext
+type Continuation = func(matchContext, int) *matchContext
 
 type Ast interface {
 	//Compile()
 	String() string
-	match(uintptr, int, Continuation) *matchContext // This implements an interpreter implementation.
+	match(matchContext, int, Continuation) *matchContext // This implements an interpreter-based regex engine.
 }
 
 type AstLit string

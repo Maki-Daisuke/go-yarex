@@ -1,59 +1,67 @@
 package yarex
 
-// matchContext forms linked-list using link to its parent node.
-// It holds an index number of a capturing group and a position in a string
-// being matched.
-// The two positions with the identical index represents the end and the start
-// position of the string captured by the index.
-// For example, when the following data eixsts:
-//
-//   +-------------+    +-------------+    +-------------+    +---------------+
-//   | position: +-+--->| position: +-+--->| position: +-+--->| position: nil |
-//   | index   : 0 |    | index   : 1 |    | index   : 1 |    | index   :   0 |
-//   | pos     : 9 |    | pos     : 5 |    | pos     : 2 |    | pos     :   1 |
-//   +-------------+    +-------------+    +-------------+    +---------------+
-//
-// This means, captured string by the first "()" is indexed as str[2:5] and
-// whole matched string is indexed as str[1:9].
-type matchContext struct {
-	parent *matchContext
-	index  uint
-	pos    int
-	str    string
+import "unsafe"
+
+const initialStackSize = 64
+
+type stackFrame struct {
+	index uint
+	pos   int
 }
 
-func (c *matchContext) with(i uint, p int) *matchContext {
-	return &matchContext{c, i, p, c.str}
+type matchContext struct {
+	str      uintptr // *string              // string being matched
+	getStack uintptr // *func() []stackFrame // Accessors to stack to record capturing positions.
+	setStack uintptr // *func([]stackFrame)  // We use uintptr to avoid leaking param.
+	stackTop int     // stack top
+}
+
+func makeContext(str *string, getter *func() []stackFrame, setter *func([]stackFrame)) matchContext {
+	return matchContext{uintptr(unsafe.Pointer(str)), uintptr(unsafe.Pointer(getter)), uintptr(unsafe.Pointer(setter)), 0}
+}
+
+func (c matchContext) push(i uint, p int) matchContext {
+	st := (*(*func() []stackFrame)(unsafe.Pointer(c.getStack)))() // == c.getStack()
+	sf := stackFrame{i, p}
+	if len(st) <= c.stackTop {
+		st = append(st, sf)
+		(*(*func([]stackFrame))(unsafe.Pointer(c.setStack)))(st) // == c.setStack(st)
+	} else {
+		st[c.stackTop] = sf
+	}
+	c.stackTop++
+	return c
 }
 
 // GetOffset returns (-1, -1) when it cannot find specified index.
-func (c *matchContext) GetOffset(i uint) (start int, end int) {
-	for ; ; c = c.parent {
-		if c == nil {
+func (c matchContext) GetOffset(idx uint) (start int, end int) {
+	st := (*(*func() []stackFrame)(unsafe.Pointer(c.getStack)))() // == c.getStack()
+	i := c.stackTop - 1
+	for ; ; i-- {
+		if i == 0 {
 			return -1, -1
 		}
-		if c.index == i {
-			end = c.pos
+		if st[i].index == idx {
+			end = st[i].pos
 			break
 		}
 	}
-	c = c.parent
-	for ; ; c = c.parent {
-		if c == nil {
-			// This should not happen.
-			panic("Undetermined capture")
-		}
-		if c.index == i {
-			start = c.pos
+	i--
+	for ; i >= 0; i-- {
+		if st[i].index == idx {
+			start = st[i].pos
 			return
 		}
 	}
+	// This should not happen.
+	panic("Undetermined capture")
 }
 
-func (c *matchContext) GetCaptured(i uint) (string, bool) {
+func (c matchContext) GetCaptured(i uint) (string, bool) {
 	start, end := c.GetOffset(i)
 	if start < 0 {
 		return "", false
 	}
-	return c.str[start:end], true
+	str := *(*string)(unsafe.Pointer(c.str))
+	return str[start:end], true
 }

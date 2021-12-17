@@ -10,7 +10,7 @@ type opExecer struct {
 	op OpTree
 }
 
-func (oe opExecer) exec(str string, pos int, onSuccess func(*MatchContext)) bool {
+func (oe opExecer) exec(str string, pos int, onSuccess func(MatchContext)) bool {
 	op := oe.op
 	_, headOnly := op.(*OpAssertBegin)
 	if headOnly && pos != 0 {
@@ -20,30 +20,32 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(*MatchContext)) bool
 	if minReq > len(str)-pos {
 		return false
 	}
-	ctx := MatchContext{nil, str, ContextKey{'c', 0}, pos}
-	if opTreeExec(op, uintptr(unsafe.Pointer(&ctx)), pos, onSuccess) {
+	stack := *(opStackPool.Get().(*[]opStackFrame))
+	defer func() { opStackPool.Put(&stack) }()
+	getter := func() []opStackFrame { return stack }
+	setter := func(s []opStackFrame) { stack = s }
+	ctx0 := makeOpMatchContext(&str, &getter, &setter)
+	if opTreeExec(op, ctx0.Push(ContextKey{'c', 0}, 0), pos, onSuccess) {
 		return true
 	}
 	if headOnly {
 		return false
 	}
 	for i := pos + 1; minReq <= len(str)-i; i++ {
-		ctx := MatchContext{nil, str, ContextKey{'c', 0}, i}
-		if opTreeExec(op, uintptr(unsafe.Pointer(&ctx)), i, onSuccess) {
+		if opTreeExec(op, ctx0.Push(ContextKey{'c', 0}, i), i, onSuccess) {
 			return true
 		}
 	}
 	return false
 }
 
-func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*MatchContext)) bool {
-	ctx := (*MatchContext)(unsafe.Pointer(c))
-	str := ctx.Str
+func opTreeExec(next OpTree, ctx MatchContext, p int, onSuccess func(MatchContext)) bool {
+	str := *(*string)(unsafe.Pointer(ctx.Str))
 	for {
 		switch op := next.(type) {
 		case OpSuccess:
-			c := ctx.With(ContextKey{'c', 0}, p)
-			onSuccess(&c)
+			ctx := ctx.Push(ContextKey{'c', 0}, p)
+			onSuccess(ctx)
 			return true
 		case *OpStr:
 			if len(str)-p < op.minReq {
@@ -57,7 +59,7 @@ func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*MatchContext)) bo
 			next = op.follower
 			p += len(op.str)
 		case *OpAlt:
-			if opTreeExec(op.follower, c, p, onSuccess) {
+			if opTreeExec(op.follower, ctx, p, onSuccess) {
 				return true
 			}
 			next = op.alt
@@ -67,8 +69,8 @@ func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*MatchContext)) bo
 				next = op.alt // So, terminate repeating.
 				continue
 			}
-			ctx2 := ctx.With(op.key, p)
-			if opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess) {
+			ctx2 := ctx.Push(op.key, p)
+			if opTreeExec(op.follower, ctx2, p, onSuccess) {
 				return true
 			}
 			next = op.alt
@@ -99,11 +101,9 @@ func opTreeExec(next OpTree, c uintptr, p int, onSuccess func(*MatchContext)) bo
 			next = op.follower
 			p += size
 		case *OpCaptureStart:
-			ctx2 := ctx.With(op.key, p)
-			return opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
+			return opTreeExec(op.follower, ctx.Push(op.key, p), p, onSuccess)
 		case *OpCaptureEnd:
-			ctx2 := ctx.With(op.key, p)
-			return opTreeExec(op.follower, uintptr(unsafe.Pointer(&ctx2)), p, onSuccess)
+			return opTreeExec(op.follower, ctx.Push(op.key, p), p, onSuccess)
 		case *OpBackRef:
 			s, ok := ctx.GetCaptured(op.key)
 			if !ok || !strings.HasPrefix(str[p:], s) {
