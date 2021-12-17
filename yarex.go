@@ -37,3 +37,18 @@ func (re Regexp) String() string {
 func (re Regexp) MatchString(s string) bool {
 	return re.exe.exec(s, 0, func(_ MatchContext) {})
 }
+
+func (re Regexp) FindString(s string) string {
+	matched := ""
+	re.exe.exec(s, 0, func(c MatchContext) {
+		matched, _ = c.GetCaptured(ContextKey{'c', 0})
+	})
+	return matched
+}
+
+func (re Regexp) FindStringIndex(s string) (loc []int) {
+	re.exe.exec(s, 0, func(c MatchContext) {
+		loc = c.GetCapturedIndex(ContextKey{'c', 0})
+	})
+	return loc
+}

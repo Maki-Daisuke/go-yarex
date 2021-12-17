@@ -48,12 +48,20 @@ func (c MatchContext) Push(k ContextKey, p int) MatchContext {
 }
 
 func (c MatchContext) GetCaptured(k ContextKey) (string, bool) {
+	loc := c.GetCapturedIndex(k)
+	if loc == nil {
+		return "", false
+	}
+	return (*(*string)(unsafe.Pointer(c.Str)))[loc[0]:loc[1]], true
+}
+
+func (c MatchContext) GetCapturedIndex(k ContextKey) []int {
 	var start, end int
 	st := (*(*func() []opStackFrame)(unsafe.Pointer(c.getStack)))() // c.getStack()
 	i := c.stackTop - 1
 	for ; ; i-- {
 		if i == 0 {
-			return "", false
+			return nil
 		}
 		if st[i].Key == k {
 			end = st[i].Pos
@@ -64,8 +72,7 @@ func (c MatchContext) GetCaptured(k ContextKey) (string, bool) {
 	for ; i >= 0; i-- {
 		if st[i].Key == k {
 			start = st[i].Pos
-			str := *(*string)(unsafe.Pointer(c.Str))
-			return str[start:end], true
+			return []int{start, end}
 		}
 	}
 	// This should not happen.
