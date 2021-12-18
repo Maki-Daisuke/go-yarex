@@ -106,34 +106,55 @@ func (oc *opCompiler) compileRepeat(re Ast, min, max int, follower OpTree) OpTre
 	if min > 0 {
 		return oc.compile(re, oc.compileRepeat(re, min-1, max-1, follower))
 	}
+	if max == 0 {
+		return follower
+	}
+	switch r := re.(type) {
+	// Optimization for repeating fixed-length patterns
+	case AstLit:
+		return &OpRepeatLit{
+			OpBase: OpBase{
+				follower: follower,
+				minReq:   follower.minimumReq(),
+			},
+			lit: string(r),
+			max: max,
+		}
+	case AstCharClass:
+		return &OpRepeatClass{
+			OpBase: OpBase{
+				follower: follower,
+				minReq:   follower.minimumReq(),
+			},
+			CharClass: r.CharClass,
+			max:       max,
+		}
+	}
 	if max > 0 {
 		left := oc.compile(re, oc.compileRepeat(re, 0, max-1, follower))
 		return newOpAlt(left, follower)
 	}
-	if max < 0 { // This means repeat infinitely
-		if !canMatchZeroWidth(re) { // If re does not match zero-width string, we can optimize by skipping zero-width check
-			self := &OpAlt{
-				OpBase: OpBase{
-					minReq: follower.minimumReq(),
-				},
-				alt: follower,
-			}
-			self.follower = oc.compile(re, self) // self-reference makes infinite loop
-			return self
-		}
-		oc.repeatCount++
-		self := &OpRepeat{
+	// If you are here max < 0, which means infinite repeat
+	if !canMatchZeroWidth(re) { // If re does not match zero-width string, we can optimize by skipping zero-width check
+		self := &OpAlt{
 			OpBase: OpBase{
 				minReq: follower.minimumReq(),
 			},
-			key: ContextKey{'r', oc.repeatCount},
 			alt: follower,
 		}
 		self.follower = oc.compile(re, self) // self-reference makes infinite loop
 		return self
 	}
-	// If you are here, that means min==0 && max==0
-	return follower
+	oc.repeatCount++
+	self := &OpRepeat{
+		OpBase: OpBase{
+			minReq: follower.minimumReq(),
+		},
+		key: ContextKey{'r', oc.repeatCount},
+		alt: follower,
+	}
+	self.follower = oc.compile(re, self) // self-reference makes infinite loop
+	return self
 }
 
 func canMatchZeroWidth(re Ast) bool {

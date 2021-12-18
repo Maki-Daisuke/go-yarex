@@ -35,6 +35,20 @@ type OpRepeat struct {
 	key ContextKey
 }
 
+// OpRepeat optimized for literal
+type OpRepeatLit struct {
+	OpBase
+	lit string
+	max int
+}
+
+// OpRepeat optimized for char class
+type OpRepeatClass struct {
+	OpBase
+	CharClass
+	max int
+}
+
 type OpClass struct {
 	OpBase
 	cls CharClass

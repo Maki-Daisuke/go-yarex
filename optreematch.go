@@ -41,10 +41,14 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(MatchContext)) bool 
 
 func opTreeExec(next OpTree, ctx MatchContext, p int, onSuccess func(MatchContext)) bool {
 	str := *(*string)(unsafe.Pointer(ctx.Str))
+	var (
+		localStack [16]int
+		heapStack  *[]int
+	)
 	for {
 		switch op := next.(type) {
 		case OpSuccess:
-			ctx := ctx.Push(ContextKey{'c', 0}, p)
+			ctx = ctx.Push(ContextKey{'c', 0}, p)
 			onSuccess(ctx)
 			return true
 		case *OpStr:
@@ -74,6 +78,119 @@ func opTreeExec(next OpTree, ctx MatchContext, p int, onSuccess func(MatchContex
 				return true
 			}
 			next = op.alt
+		case *OpRepeatLit:
+			endPos := len(str) - op.minReq - len(op.lit)
+			n := 0
+			for (op.max < 0 || n < op.max) && p <= endPos {
+				if str[p:p+len(op.lit)] != op.lit {
+					break
+				}
+				if len(localStack) == n {
+					goto OpRepeatLit_HEAP_STACK
+				}
+				localStack[n] = p
+				n++
+				p += len(op.lit)
+			}
+			for n > 0 { // try backtrack
+				if opTreeExec(op.follower, ctx, p, onSuccess) {
+					return true
+				}
+				n--
+				p = localStack[n]
+			}
+			next = op.follower
+			break
+		OpRepeatLit_HEAP_STACK:
+			heapStack = (IntStackPool.Get().(*[]int))
+			copy(*heapStack, localStack[:])
+			(*heapStack)[n] = p
+			n++
+			p += len(op.lit)
+			for (op.max < 0 || n < op.max) && p <= endPos {
+				if str[p:p+len(op.lit)] != op.lit {
+					break
+				}
+				if len(*heapStack) == n {
+					*heapStack = append(*heapStack, p)
+					*heapStack = (*heapStack)[:cap(*heapStack)]
+				} else {
+					(*heapStack)[n] = p
+				}
+				n++
+				p += len(op.lit)
+			}
+			for n > 0 { // try backtrack
+				if opTreeExec(op.follower, ctx, p, onSuccess) {
+					IntStackPool.Put(heapStack)
+					return true
+				}
+				n--
+				p = (*heapStack)[n]
+			}
+			IntStackPool.Put(heapStack)
+			next = op.follower
+		case *OpRepeatClass:
+			endPos := len(str) - op.minReq - 1
+			size := 0
+			n := 0
+			for (op.max < 0 || n < op.max) && p <= endPos {
+				r, size := utf8.DecodeRuneInString(str[p:])
+				if size == 0 || r == utf8.RuneError {
+					break
+				}
+				if !op.CharClass.Contains(r) {
+					break
+				}
+				if len(localStack) == n {
+					goto OpRepeatClass_HEAP_STACK
+				}
+				localStack[n] = p
+				n++
+				p += size
+			}
+			for n > 0 { // try backtrack
+				if opTreeExec(op.follower, ctx, p, onSuccess) {
+					return true
+				}
+				n--
+				p = localStack[n]
+			}
+			next = op.follower
+			break
+		OpRepeatClass_HEAP_STACK:
+			heapStack = (IntStackPool.Get().(*[]int))
+			copy(*heapStack, localStack[:])
+			(*heapStack)[n] = p
+			n++
+			p += size
+			for (op.max < 0 || n < op.max) && p <= endPos {
+				r, size := utf8.DecodeRuneInString(str[p:])
+				if size == 0 || r == utf8.RuneError {
+					break
+				}
+				if !op.CharClass.Contains(r) {
+					break
+				}
+				if len(*heapStack) == n {
+					*heapStack = append(*heapStack, p)
+					*heapStack = (*heapStack)[:cap(*heapStack)]
+				} else {
+					(*heapStack)[n] = p
+				}
+				n++
+				p += size
+			}
+			for n > 0 { // try backtrack
+				if opTreeExec(op.follower, ctx, p, onSuccess) {
+					IntStackPool.Put(heapStack)
+					return true
+				}
+				n--
+				p = (*heapStack)[n]
+			}
+			IntStackPool.Put(heapStack)
+			next = op.follower
 		case *OpClass:
 			if len(str)-p < op.minReq {
 				return false
