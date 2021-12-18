@@ -24,6 +24,7 @@ type GoGenerator struct {
 	funcs        map[string]*codeFragments
 	charClasses  map[string]charClassResult
 	useCharClass bool
+	useSmallLoop bool
 }
 
 func NewGoGenerator(file string, pkg string) *GoGenerator {
@@ -120,6 +121,7 @@ func (gg *GoGenerator) generateFunc(re string, ast Ast) *codeFragments {
 	funcID := gg.newId()
 	gg.stateCount = 0
 	gg.useCharClass = false
+	gg.useSmallLoop = false
 	follower := gg.generateAst(funcID, ast, &codeFragments{0, fmt.Sprintf(`
 			onSuccess(ctx.Push(yarex.ContextKey{'c', 0}, p))
 			return true
@@ -138,6 +140,16 @@ var _ = yarex.RegisterCompiledRegexp(%q, %t, %d, %s)
 	var (
 		r rune
 		size int
+	)
+		`
+	}
+	if gg.useSmallLoop {
+		varDecl += `
+	var (
+		localStack [16]int
+		heapStack  *[]int
+		endPos     int
+		n          int
 	)
 		`
 	}
@@ -279,6 +291,8 @@ func (gg *GoGenerator) generateAlt(funcID string, opts []Ast, follower *codeFrag
 
 func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follower *codeFragments) *codeFragments {
 	switch r := re.(type) {
+	case AstLit:
+		return gg.generateRepeatLit(funcID, string(r), min, max, follower)
 	case AstCharClass:
 		return gg.generateRepeatCharClass(funcID, r, min, max, follower)
 	}
@@ -349,19 +363,88 @@ func (gg *GoGenerator) generateRepeat(funcID string, re Ast, min, max int, follo
 	`, startState))
 }
 
+func (gg *GoGenerator) generateRepeatLit(funcID string, lit string, min, max int, follower *codeFragments) *codeFragments {
+	gg.useSmallLoop = true
+	followerState := gg.newState()
+	minReq := follower.minReq + len(lit)
+	maxCond := ""
+	if max >= 0 {
+		maxCond = fmt.Sprintf(`n < %d && `, max)
+	}
+	conds := []string{}
+	for i := 0; i < len(lit); i++ {
+		conds = append(conds, fmt.Sprintf(`str[p+%d] != %d`, i, lit[i]))
+	}
+	condition := strings.Join(conds, " || ")
+	return follower.prepend(fmt.Sprintf(`
+		endPos = len(str) - %d
+		n = 0
+		for %s p <= endPos {
+			if %s {
+				break
+			}
+			if len(localStack) == n {
+				goto LABEL_HEAP_STACK%d
+			}
+			localStack[n] = p
+			n++
+			p += %d
+		}
+		for n > %d {  // try backtrack
+			if %s(%d, ctx, p, onSuccess) {
+				return true
+			}
+			n--
+			p = localStack[n]
+		}
+		goto LABEL_END%d
+	LABEL_HEAP_STACK%d:
+		heapStack = (yarex.IntStackPool.Get().(*[]int))
+		copy(*heapStack, localStack[:])
+		(*heapStack)[n] = p
+		n++
+		p += %d
+		for %s p <= endPos {
+			if %s {
+				break
+			}
+			if len(*heapStack) == n {
+				*heapStack = append(*heapStack, p)
+				*heapStack = (*heapStack)[:cap(*heapStack)]
+			} else {
+				(*heapStack)[n] = p
+			}
+			n++
+			p += %d
+		}
+		for n > %d {  // try backtrack
+			if %s(%d, ctx, p, onSuccess) {
+				yarex.IntStackPool.Put(heapStack)
+				return true
+			}
+			n--
+			p = (*heapStack)[n]
+		}
+		yarex.IntStackPool.Put(heapStack)
+	LABEL_END%d:
+		fallthrough
+	case %d:
+	`, minReq, maxCond, condition, followerState, len(lit), min, funcID, followerState, followerState, followerState, len(lit), maxCond, condition, len(lit), min, funcID, followerState, followerState, followerState))
+}
+
 func (gg *GoGenerator) generateRepeatCharClass(funcID string, re AstCharClass, min, max int, follower *codeFragments) *codeFragments {
 	gg.generateCharClass(re.str, re.CharClass, follower) // Compile and register CharClass
 	ccId := gg.charClasses[re.str].id                    // Get CharClass's identifier
 	followerState := gg.newState()
+	minReq := follower.minReq + 1
 	maxCond := ""
 	if max >= 0 {
 		maxCond = fmt.Sprintf(`n < %d && `, max)
 	}
 	return follower.prepend(fmt.Sprintf(`
-		stack := (yarex.IntStackPool.Get().(*[]int))
-		endPos := len(str) - %d
-		n := 0
-		for %s p < endPos {
+		endPos = len(str) - %d
+		n = 0
+		for %s p <= endPos {
 			r, size = utf8.DecodeRuneInString(str[p:])
 			if size == 0 || r == utf8.RuneError {
 				break
@@ -369,27 +452,57 @@ func (gg *GoGenerator) generateRepeatCharClass(funcID string, re AstCharClass, m
 			if !%s.Contains(r) {
 				break
 			}
-			if len(*stack) == n {
-				*stack = append(*stack, p)
-				*stack = (*stack)[:cap(*stack)]
+			if len(localStack) == n {
+				goto LABEL_HEAP_STACK%d
+			}
+			localStack[n] = p
+			n++
+			p += size
+		}
+		for n > %d {  // try backtrack
+			if %s(%d, ctx, p, onSuccess) {
+				return true
+			}
+			n--
+			p = localStack[n]
+		}
+		goto LABEL_END%d
+	LABEL_HEAP_STACK%d:
+		heapStack = (yarex.IntStackPool.Get().(*[]int))
+		copy(*heapStack, localStack[:])
+		(*heapStack)[n] = p
+		n++
+		p += size
+		for %s p <= endPos {
+			r, size = utf8.DecodeRuneInString(str[p:])
+			if size == 0 || r == utf8.RuneError {
+				break
+			}
+			if !%s.Contains(r) {
+				break
+			}
+			if len(*heapStack) == n {
+				*heapStack = append(*heapStack, p)
+				*heapStack = (*heapStack)[:cap(*heapStack)]
 			} else {
-				(*stack)[n] = p
+				(*heapStack)[n] = p
 			}
 			n++
 			p += size
 		}
 		for n > %d {  // try backtrack
 			if %s(%d, ctx, p, onSuccess) {
-				yarex.IntStackPool.Put(stack)
+				yarex.IntStackPool.Put(heapStack)
 				return true
 			}
 			n--
-			p = (*stack)[n]
+			p = (*heapStack)[n]
 		}
-		yarex.IntStackPool.Put(stack)
+		yarex.IntStackPool.Put(heapStack)
+	LABEL_END%d:
 		fallthrough
 	case %d:
-	`, follower.minReq, maxCond, ccId, min, funcID, followerState, followerState))
+	`, minReq, maxCond, ccId, followerState, min, funcID, followerState, followerState, followerState, maxCond, ccId, min, funcID, followerState, followerState, followerState))
 }
 
 func (gg *GoGenerator) compileCapture(funcID string, re Ast, index uint, follower *codeFragments) *codeFragments {
