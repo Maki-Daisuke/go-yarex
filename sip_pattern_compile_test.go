@@ -8,7 +8,7 @@ import (
 
 //go:generate cmd/yarexgen/yarexgen sip_pattern_compile_test.go
 
-// This benchmark was barrowed from https://qiita.com/marnie_ms4/items/7014563083ca1d824905
+// This benchmark was barrowed from https://qiita.com/tj8000rpm/items/b92d7617883639a3e714
 var sipPattern = `^["]{0,1}([^"]*)["]{0,1}[ ]*<(sip|tel|sips):(([^@]*)@){0,1}([^>^:]*|\[[a-fA-F0-9:]*\]):{0,1}([0-9]*){0,1}>(;.*){0,1}$` //yarexgen
 var sipReYa = yarex.MustCompile(sipPattern)
 var testStrings = []string{"\"display_name\"<sip:0312341234@10.0.0.1:5060>;user=phone;hogehoge",

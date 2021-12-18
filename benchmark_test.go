@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// This benchmark was barrowed from https://qiita.com/marnie_ms4/items/7014563083ca1d824905
+// This benchmark was barrowed from https://qiita.com/tj8000rpm/items/b92d7617883639a3e714
 var sipPattern = `^["]{0,1}([^"]*)["]{0,1}[ ]*<(sip|tel|sips):(([^@]*)@){0,1}([^>^:]*|\[[a-fA-F0-9:]*\]):{0,1}([0-9]*){0,1}>(;.*){0,1}$`
 var sipReAst, _ = parse(sipPattern)
 var sipReOpt = optimizeAst(sipReAst)
