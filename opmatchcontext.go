@@ -2,7 +2,6 @@ package yarex
 
 import (
 	"sync"
-	"unsafe"
 )
 
 type ContextKey struct {
@@ -23,14 +22,14 @@ var opStackPool = sync.Pool{
 }
 
 type MatchContext struct {
-	Str      uintptr               // *string                // string being matched
+	Str      string                // string being matched
 	getStack func() []opStackFrame // Accessors to stack to record capturing positions.
 	setStack func([]opStackFrame)  // We use uintptr to avoid leaking param.
 	stackTop int                   // stack top
 }
 
-func makeOpMatchContext(str *string, getter func() []opStackFrame, setter func([]opStackFrame)) MatchContext {
-	return MatchContext{uintptr(unsafe.Pointer(str)), getter, setter, 0}
+func makeOpMatchContext(str string, getter func() []opStackFrame, setter func([]opStackFrame)) MatchContext {
+	return MatchContext{str, getter, setter, 0}
 }
 
 func (c MatchContext) Push(k ContextKey, p int) MatchContext {
@@ -52,7 +51,7 @@ func (c MatchContext) GetCaptured(k ContextKey) (string, bool) {
 	if loc == nil {
 		return "", false
 	}
-	return (*(*string)(unsafe.Pointer(c.Str)))[loc[0]:loc[1]], true
+	return c.Str[loc[0]:loc[1]], true
 }
 
 func (c MatchContext) GetCapturedIndex(k ContextKey) []int {

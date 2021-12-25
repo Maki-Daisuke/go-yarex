@@ -62,7 +62,6 @@ func (gg *GoGenerator) WriteTo(w io.Writer) (int64, error) {
 
 	import (
 		"strconv"
-		"unsafe"
 		%s
 		"github.com/Maki-Daisuke/go-yarex"
 	)
@@ -157,7 +156,7 @@ var _ = yarex.RegisterCompiledRegexp(%q, %t, %d, %s)
 	return follower.prepend(fmt.Sprintf(`
 func %s (state int, ctx yarex.MatchContext, p int, onSuccess func(yarex.MatchContext)) bool {
 	%s
-	str := *(*string)(unsafe.Pointer(ctx.Str))
+	str := ctx.Str
 	for{
 		switch state {
 		case 0:
