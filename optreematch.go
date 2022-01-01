@@ -23,7 +23,7 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(MatchContext)) bool 
 	defer func() { opStackPool.Put(&stack) }()
 	getter := func() []opStackFrame { return stack }
 	setter := func(s []opStackFrame) { stack = s }
-	ctx0 := makeOpMatchContext(str, getter, setter)
+	ctx0 := makeOpMatchContext(&str, &getter, &setter)
 	if opTreeExec(op, ctx0.Push(ContextKey{'c', 0}, 0), pos, onSuccess) {
 		return true
 	}
@@ -39,7 +39,7 @@ func (oe opExecer) exec(str string, pos int, onSuccess func(MatchContext)) bool 
 }
 
 func opTreeExec(next OpTree, ctx MatchContext, p int, onSuccess func(MatchContext)) bool {
-	str := ctx.Str
+	str := *ctx.Str
 	var (
 		localStack [16]int
 		heapStack  *[]int

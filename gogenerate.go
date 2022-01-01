@@ -156,7 +156,7 @@ var _ = yarex.RegisterCompiledRegexp(%q, %t, %d, %s)
 	return follower.prepend(fmt.Sprintf(`
 func %s (state int, ctx yarex.MatchContext, p int, onSuccess func(yarex.MatchContext)) bool {
 	%s
-	str := ctx.Str
+	str := *ctx.Str
 	for{
 		switch state {
 		case 0:
