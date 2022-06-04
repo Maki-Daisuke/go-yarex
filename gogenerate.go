@@ -441,6 +441,7 @@ func (gg *GoGenerator) generateRepeatCharClass(funcID string, re AstCharClass, m
 	if max >= 0 {
 		maxCond = fmt.Sprintf(`n < %d && `, max)
 	}
+	gg.useSmallLoop = true
 	return follower.prepend(fmt.Sprintf(`
 		endPos = len(str) - %d
 		n = 0
