@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "py-regex-benchmark"
+version = "0.1.0"
+description = "Just simple regex benchmark"
+authors = ["Daisuke (yet another) Maki <maki.daisuke+gh@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pytest = "^8.1.1"
+regex = "^2023.12.25"
+pytest-benchmark = "^4.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
